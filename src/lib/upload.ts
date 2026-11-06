@@ -1,5 +1,5 @@
 /**
- * Upload a file through the local proxy using Filester's chunked v2 protocol
+ * Upload a file through this app's /api/fs route using Filester's chunked v2 protocol
  * (the same one their web uploader uses):
  *
  *   POST /api/v2/upload/init    {filename,size,folder} -> {id,chunk_size,total_chunks,parallel}
@@ -27,7 +27,6 @@ const RETRYABLE = new Set([0, 408, 429, 500, 502, 503, 504])
 export function uploadFile(
   file: File,
   folder: string | null,
-  apiKey: string,
   onProgress: (loaded: number, total: number) => void,
 ): UploadHandle {
   let aborted = false
@@ -38,7 +37,7 @@ export function uploadFile(
     aborted = true
     xhrs.forEach((x) => x.abort())
     if (uploadId) {
-      fetch('/proxy/v2/upload/abort', { method: 'POST', headers: { 'x-fs-key': apiKey, 'x-upload-id': uploadId } }).catch(() => {})
+      fetch('/api/fs/v2/upload/abort', { method: 'POST', headers: { 'x-upload-id': uploadId } }).catch(() => {})
     }
   }
 
@@ -47,7 +46,6 @@ export function uploadFile(
       const xhr = new XMLHttpRequest()
       xhrs.add(xhr)
       xhr.open(method, url)
-      xhr.setRequestHeader('x-fs-key', apiKey)
       for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v)
       if (onUp) xhr.upload.onprogress = (e) => e.lengthComputable && onUp(e.loaded)
       const done = () => {
@@ -66,20 +64,20 @@ export function uploadFile(
     const fd = new FormData()
     fd.append('file', file)
     const headers: Record<string, string> = folder ? { 'x-folder-id': folder } : {}
-    const r = await xhrSend('POST', '/proxy/v1/upload', headers, fd, (n) => onProgress(n, file.size))
+    const r = await xhrSend('POST', '/api/fs/v1/upload', headers, fd, (n) => onProgress(n, file.size))
     if (aborted) throw new Error('Cancelled')
     if (r.status !== 200 || !r.json.success) throw new Error(String(r.json.message || `Upload failed (${r.status})`))
     return r.json as unknown as UploadResult
   }
 
   const v2 = async (): Promise<UploadResult> => {
-    const initRes = await fetch('/proxy/v2/upload/init', {
+    const initRes = await fetch('/api/fs/v2/upload/init', {
       method: 'POST',
-      headers: { 'x-fs-key': apiKey, 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ filename: file.name, size: file.size, folder: folder ?? '' }),
     })
     if (initRes.status === 404 || initRes.status === 405) return v1()
-    const plan = await initRes.json()
+    const plan = (await initRes.json()) as { success?: boolean; message?: string; id: string; chunk_size: number; total_chunks: number; parallel?: number }
     if (!initRes.ok || !plan.success) throw new Error(plan.message || `Upload init failed (${initRes.status})`)
     uploadId = plan.id
     const chunkSize: number = plan.chunk_size
@@ -93,7 +91,7 @@ export function uploadFile(
       const end = Math.min(start + chunkSize, file.size)
       for (let attempt = 1; ; attempt++) {
         if (aborted) throw new Error('Cancelled')
-        const r = await xhrSend('PUT', '/proxy/v2/upload/chunk',
+        const r = await xhrSend('PUT', '/api/fs/v2/upload/chunk',
           { 'x-upload-id': uploadId, 'x-chunk-index': String(i), 'content-type': 'application/octet-stream' },
           file.slice(start, end), (n) => { loaded[i] = n; report() })
         if (r.status === 200 && r.json.success) { loaded[i] = end - start; report(); return }
@@ -111,9 +109,9 @@ export function uploadFile(
     const deadline = Date.now() + 30 * 60_000
     for (;;) {
       if (aborted) throw new Error('Cancelled')
-      const r = await fetch('/proxy/v2/upload/finish', { method: 'POST', headers: { 'x-fs-key': apiKey, 'x-upload-id': uploadId } })
-      const j = await r.json().catch(() => ({}))
-      if (r.status === 200 && j.success) return j as UploadResult
+      const r = await fetch('/api/fs/v2/upload/finish', { method: 'POST', headers: { 'x-upload-id': uploadId } })
+      const j = (await r.json().catch(() => ({}))) as { success?: boolean; message?: string }
+      if (r.status === 200 && j.success) return j as unknown as UploadResult
       if (r.status !== 202 && !RETRYABLE.has(r.status)) throw new Error(j.message || `Finish failed (${r.status})`)
       if (Date.now() > deadline) throw new Error('Timed out waiting for Filester to process the upload')
       await sleep(1500)

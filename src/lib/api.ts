@@ -1,5 +1,4 @@
 import type { Account, FileInfo, FileItem, Folder, FolderInfo, Pagination } from './types'
-import type { Session } from './session'
 
 export class ApiError extends Error {
   status: number
@@ -9,12 +8,8 @@ export class ApiError extends Error {
   }
 }
 
-let current: Session | null = null
 let onUnauthorized: (() => void) | null = null
 
-export function setApiSession(s: Session | null) {
-  current = s
-}
 export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn
 }
@@ -23,12 +18,9 @@ type Base = 'v1' | 'u1' | 'web'
 
 async function request<T>(base: Base, path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
-  if (current) {
-    if (base === 'web') headers.set('x-fs-token', current.token)
-    else headers.set('x-fs-key', current.apiKey)
-  }
   if (init.body && typeof init.body === 'string') headers.set('content-type', 'application/json')
-  const res = await fetch(`/proxy/${base}/${path}`, { ...init, headers })
+  // Credentials travel in the HttpOnly session cookie; the server attaches them.
+  const res = await fetch(`/api/fs/${base}/${path}`, { ...init, headers, credentials: 'same-origin' })
   let data: unknown = null
   const text = await res.text()
   try {
@@ -141,20 +133,4 @@ export function moveFiles(ids: string[], folder: string | null) {
 
 export function deleteFiles(ids: string[]) {
   return request<{ successful_deletes: number; failed_deletes: number }>('u1', 'file/delete', post({ identifiers: ids }))
-}
-
-// ---------------------------------------------------------------- auth
-
-export async function login(username: string, password: string, code?: string) {
-  const res = await fetch('/local/login', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username, password, code: code || undefined }),
-  })
-  const d = (await res.json().catch(() => ({}))) as {
-    success?: boolean; requires_2fa?: boolean; message?: string; token?: string; apiKey?: string
-  }
-  if (d.requires_2fa) return { requires2fa: true as const }
-  if (!d.success || !d.token) throw new ApiError(d.message || 'Login failed', res.status)
-  return { requires2fa: false as const, session: { username, token: d.token, apiKey: d.apiKey || '' } }
 }

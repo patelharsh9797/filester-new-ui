@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ChevronRight, Copy, ExternalLink, FolderInput, FolderPlus, Globe, Home, Lock, Pencil, Search, Trash2, Upload, X } from 'lucide-react'
 import { useLibrary } from '../lib/library'
 import { searchItems } from '../lib/search'
@@ -15,17 +15,17 @@ import { useToast } from '../state/toast'
 import { Skeleton } from './Overview'
 
 export function FolderPage() {
-  const { id = 'root' } = useParams()
-  const [params, setParams] = useSearchParams()
+  const { id } = useParams({ from: '/_app/folders/$id' })
+  const search = useSearch({ from: '/_app/folders/$id' })
   const lib = useLibrary()
   const actions = useActions()
   const toast = useToast()
-  const navigate = useNavigate()
+  const navigate = useNavigate({ from: '/folders/$id' })
   const { openUpload } = useShell()
   const [subQ, setSubQ] = useState('')
-  const fileQ = params.get('fq') ?? ''
-  const deep = params.get('deep') === '1'
-  const highlight = params.get('file')
+  const fileQ = search.fq ?? ''
+  const deep = search.deep === '1'
+  const highlight = search.file ?? null
 
   const isRoot = id === 'root'
   const folder = isRoot ? undefined : lib.byId.get(id)
@@ -48,7 +48,8 @@ export function FolderPage() {
     return fileQ ? searchItems(list, fileQ, (f) => f.name, (f) => f.folderPath) : list
   }, [isRoot, folder, deep, fileQ, lib])
 
-  const setParam = (k: string, v: string | null) => setParams((p) => { const n = new URLSearchParams(p); if (v) n.set(k, v); else n.delete(k); n.delete('file'); return n }, { replace: true })
+  const setParam = (k: 'fq' | 'deep', v: string | null) =>
+    navigate({ search: (prev) => ({ ...prev, [k]: v || undefined, file: undefined }), replace: true })
 
   if (lib.foldersLoading) return <div className="max-w-6xl mx-auto p-6"><Skeleton rows={6} /></div>
   if (!isRoot && !folder) {
@@ -73,7 +74,7 @@ export function FolderPage() {
           <span key={c.id} className="inline-flex items-center gap-1 min-w-0">
             <ChevronRight className="size-3.5 text-faint shrink-0" />
             {i === crumbs.length - 1 ? <span className="text-ink truncate max-w-[240px]">{c.name}</span>
-              : <Link to={`/folders/${c.id}`} className="hover:text-ink truncate max-w-[180px]">{c.name}</Link>}
+              : <Link to="/folders/$id" params={{ id: c.id }} className="hover:text-ink truncate max-w-[180px]">{c.name}</Link>}
           </span>
         ))}
       </nav>
@@ -103,7 +104,7 @@ export function FolderPage() {
               { label: 'Edit…', icon: <Pencil className="size-4" />, onClick: () => actions.editFolder(folder) },
               { label: 'Move to…', icon: <FolderInput className="size-4" />, onClick: () => actions.moveFolders([folder]) },
               'sep',
-              { label: 'Delete folder', icon: <Trash2 className="size-4" />, danger: true, onClick: () => actions.deleteFolders([folder], () => navigate(folder.parent ? `/folders/${folder.parent}` : '/folders')) },
+              { label: 'Delete folder', icon: <Trash2 className="size-4" />, danger: true, onClick: () => actions.deleteFolders([folder], () => folder.parent ? navigate({ to: '/folders/$id', params: { id: folder.parent } }) : navigate({ to: '/folders' })) },
             ]} />
           )}
         </div>
@@ -123,7 +124,7 @@ export function FolderPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
             {subfolders.map((f) => (
               <div key={f.id} className="card flex items-center gap-1 pr-1 hover:border-faint/40 transition-colors">
-                <Link to={`/folders/${f.id}`} className="flex-1 min-w-0 flex items-center gap-3 p-3">
+                <Link to="/folders/$id" params={{ id: f.id }} className="flex-1 min-w-0 flex items-center gap-3 p-3">
                   <FolderIcon className="size-8 shrink-0" />
                   <span className="min-w-0">
                     <span className="block text-sm font-medium truncate" title={f.name}><Highlight text={f.name} query={subQ} /></span>

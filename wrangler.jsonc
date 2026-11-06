@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "filester-navigator",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "@tanstack/react-start/server-entry",
+  "observability": { "enabled": true },
+  // Serve the app on your own domain. The zone (snippface.vip) must be on this
+  // Cloudflare account; Cloudflare creates the DNS record and certificate.
+  "routes": [{ "pattern": "fs.snippface.vip", "custom_domain": true }],
+  // Also keep the free *.workers.dev URL as a fallback.
+  "workers_dev": true
+  // Secret (set with `npx wrangler secret put SESSION_SECRET`, never committed):
+  //   SESSION_SECRET – 32+ random characters used to encrypt the login cookie.
+}

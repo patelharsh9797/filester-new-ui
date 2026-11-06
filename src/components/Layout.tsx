@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation, useParams } from 'react-router-dom'
+import { Link, Outlet, useLocation, useParams } from '@tanstack/react-router'
 import { Files, FolderTree as FolderTreeIcon, LayoutDashboard, LogOut, Menu as MenuIcon, RefreshCw, Search, Settings, Upload, X } from 'lucide-react'
 import { useAccount, useLibrary } from '../lib/library'
 import { formatBytes } from '../lib/format'
-import { useAuth } from '../state/auth'
+import { useSession, useSignOut } from '../state/session'
 import { useActions } from '../state/actions'
 import { useOpenDialog } from '../state/dialogs'
 import { FolderTree } from './FolderTree'
@@ -21,12 +21,13 @@ export const useShell = () => useContext(Ctx)
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 
 export function Layout() {
-  const { session, signOut } = useAuth()
+  const session = useSession()
+  const signOut = useSignOut()
   const lib = useLibrary()
   const account = useAccount()
   const actions = useActions()
   const openDialog = useOpenDialog()
-  const params = useParams()
+  const params = useParams({ strict: false })
   const location = useLocation()
   const [searchScope, setSearchScope] = useState<null | 'all' | 'folders' | 'files'>(null)
   const [drawer, setDrawer] = useState(false)
@@ -86,10 +87,12 @@ export function Layout() {
   const acct = account.data
   const pct = acct ? Math.min(100, (acct.storage_used / acct.storage_limit) * 100) : 0
 
-  const nav = (to: string, icon: React.ReactNode, label: string, count?: number) => (
-    <NavLink to={to} end={to === '/'} className={({ isActive }) => `flex items-center gap-2.5 rounded-lg px-2.5 h-9 text-sm ${isActive ? 'bg-hover text-ink font-medium' : 'text-muted hover:bg-hover hover:text-ink'}`}>
+  const navCls = 'flex items-center gap-2.5 rounded-lg px-2.5 h-9 text-sm'
+  const nav = (to: '/' | '/folders' | '/files', icon: React.ReactNode, label: string, count?: number) => (
+    <Link to={to} className={navCls} activeOptions={{ exact: to === '/', includeSearch: false }}
+      activeProps={{ className: 'bg-hover text-ink font-medium' }} inactiveProps={{ className: 'text-muted hover:bg-hover hover:text-ink' }}>
       {icon}<span className="flex-1">{label}</span>{count !== undefined && <span className="text-xs text-faint tabular">{count.toLocaleString()}</span>}
-    </NavLink>
+    </Link>
   )
 
   const sidebar = (
@@ -109,9 +112,11 @@ export function Layout() {
         <button className="text-[11px] text-faint hover:text-ink" onClick={() => actions.newFolder(null)}>+ New</button>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto pb-3">
-        <NavLink to="/folders/root" className={({ isActive }) => `ml-6 mr-1 flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] ${isActive ? 'bg-accent-soft text-accent-ink font-medium' : 'text-muted hover:bg-hover hover:text-ink'}`}>
+        <Link to="/folders/$id" params={{ id: 'root' }} className="ml-6 mr-1 flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px]"
+          activeOptions={{ includeSearch: false }}
+          activeProps={{ className: 'bg-accent-soft text-accent-ink font-medium' }} inactiveProps={{ className: 'text-muted hover:bg-hover hover:text-ink' }}>
           <Files className="size-4" /> Unfiled files <span className="ml-auto text-[11px] text-faint tabular">{lib.filesLoading ? '' : lib.rootFiles.length}</span>
-        </NavLink>
+        </Link>
         <FolderTree onNavigate={() => setDrawer(false)} />
       </div>
       <div className="border-t border-line p-3 space-y-3 shrink-0">
@@ -124,8 +129,8 @@ export function Layout() {
         <div className="flex items-center gap-1">
           <div className="size-7 rounded-full bg-accent-soft text-accent-ink grid place-items-center text-xs font-semibold uppercase">{session?.username.slice(0, 1)}</div>
           <span className="text-sm truncate flex-1 ml-1">{session?.username}</span>
-          <NavLink to="/settings" className="btn-icon" aria-label="Settings"><Settings className="size-4" /></NavLink>
-          <button className="btn-icon" onClick={signOut} aria-label="Sign out"><LogOut className="size-4" /></button>
+          <Link to="/settings" className="btn-icon" aria-label="Settings"><Settings className="size-4" /></Link>
+          <button className="btn-icon" onClick={() => signOut()} aria-label="Sign out"><LogOut className="size-4" /></button>
         </div>
       </div>
     </div>

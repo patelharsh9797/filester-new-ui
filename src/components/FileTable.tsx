@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from '@tanstack/react-router'
 import { ArrowDown, ArrowUp, Copy, ExternalLink, FolderInput, Info, Pencil, Trash2, X } from 'lucide-react'
 import type { FileRow } from '../lib/types'
 import { formatBytes, formatDate } from '../lib/format'
@@ -140,7 +140,7 @@ export function FileTable({ files, showFolder = true, query = '', highlight, emp
                   {showFolder && (
                     <td className="td hidden md:table-cell max-w-[260px]">
                       {f.folder_id && f.folderPath
-                        ? <Link to={`/folders/${f.folder_id}`} className="flex items-center gap-1.5 text-muted hover:text-ink min-w-0" title={f.folderPath}><FolderIcon className="size-4 shrink-0" /><span className="truncate"><Highlight text={f.folderPath} query={query} /></span></Link>
+                        ? <Link to="/folders/$id" params={{ id: f.folder_id }} className="flex items-center gap-1.5 text-muted hover:text-ink min-w-0" title={f.folderPath}><FolderIcon className="size-4 shrink-0" /><span className="truncate"><Highlight text={f.folderPath} query={query} /></span></Link>
                         : <span className="text-faint">—</span>}
                     </td>
                   )}

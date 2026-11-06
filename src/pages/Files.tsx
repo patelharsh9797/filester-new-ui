@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Search, X } from 'lucide-react'
 import { useLibrary } from '../lib/library'
 import { searchItems } from '../lib/search'
@@ -26,14 +26,16 @@ const AGES = {
 export function FilesPage() {
   const lib = useLibrary()
   const actions = useActions()
-  const [params, setParams] = useSearchParams()
-  const q = params.get('q') ?? ''
-  const kind = (params.get('kind') as FileKind | null) ?? null
-  const size = (params.get('size') as keyof typeof SIZES) || 'any'
-  const age = (params.get('age') as keyof typeof AGES) || 'any'
-  const where = params.get('in') // folder id, 'root', or null
+  const params = useSearch({ from: '/_app/files' })
+  const navigate = useNavigate({ from: '/files' })
+  const q = params.q ?? ''
+  const kind = (params.kind as FileKind | undefined) ?? null
+  const size: keyof typeof SIZES = params.size && params.size in SIZES ? (params.size as keyof typeof SIZES) : 'any'
+  const age: keyof typeof AGES = params.age && params.age in AGES ? (params.age as keyof typeof AGES) : 'any'
+  const where = params.in ?? null // folder id, 'root', or null
 
-  const set = (k: string, v: string | null) => setParams((p) => { const n = new URLSearchParams(p); if (v) n.set(k, v); else n.delete(k); return n }, { replace: true })
+  const set = (k: 'q' | 'kind' | 'size' | 'age' | 'in', v: string | null) =>
+    navigate({ search: (prev) => ({ ...prev, [k]: v || undefined }), replace: true })
 
   const scopeIds = useMemo(() => {
     if (!where || where === 'root') return null
@@ -104,7 +106,7 @@ export function FilesPage() {
         {anyFilter && (
           <>
             <span className="ml-auto text-xs text-faint">{files.length.toLocaleString()} match</span>
-            <button className="text-xs text-muted hover:text-ink underline" onClick={() => setParams({}, { replace: true })}>Reset</button>
+            <button className="text-xs text-muted hover:text-ink underline" onClick={() => navigate({ search: {}, replace: true })}>Reset</button>
           </>
         )}
       </div>

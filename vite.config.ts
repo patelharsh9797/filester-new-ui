@@ -1,15 +1,16 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import { cloudflare } from '@cloudflare/vite-plugin'
+import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-const server = `http://127.0.0.1:${process.env.SERVER_PORT || 8787}`
-
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  server: {
-    proxy: {
-      '/proxy': { target: server, changeOrigin: true },
-      '/local': { target: server, changeOrigin: true },
-    },
-  },
+  server: { port: 3000 },
+  resolve: { tsconfigPaths: true },
+  plugins: [
+    cloudflare({ viteEnvironment: { name: 'ssr' } }),
+    tanstackStart(),
+    viteReact(),
+    tailwindcss(),
+  ],
 })

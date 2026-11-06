@@ -1,16 +1,14 @@
-import { useState } from 'react'
-import { Download, ExternalLink, Eye, EyeOff, LogOut } from 'lucide-react'
-import { useAuth } from '../state/auth'
+import { Download, ExternalLink, LogOut } from 'lucide-react'
+import { useSession, useSignOut } from '../state/session'
 import { useAccount, useLibrary } from '../lib/library'
-import { tokenExpiry } from '../lib/session'
 import { formatBytes } from '../lib/format'
 
 export function SettingsPage() {
-  const { session, signOut } = useAuth()
+  const session = useSession()
+  const signOut = useSignOut()
   const account = useAccount()
   const lib = useLibrary()
-  const [showKey, setShowKey] = useState(false)
-  const exp = session ? tokenExpiry(session.token) : null
+  const exp = session.exp
   const a = account.data
 
   const exportCsv = () => {
@@ -35,18 +33,13 @@ export function SettingsPage() {
         {row('Storage', a ? `${formatBytes(a.storage_used)} of ${formatBytes(a.storage_limit, 0)}` : '…')}
         {row('API requests today', a ? `${a.api_requests_today} (limit 1,000 / hour)` : '…')}
         {row('Session expires', exp ? new Date(exp * 1000).toLocaleString() : 'Unknown')}
-        {row('API key', (
-          <span className="inline-flex items-center gap-2">
-            <code className="font-mono text-xs break-all">{showKey ? session?.apiKey : '•'.repeat(16)}</code>
-            <button className="btn-icon size-6" onClick={() => setShowKey((s) => !s)} aria-label="Toggle key">{showKey ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}</button>
-          </span>
-        ))}
+        {row('Credentials', <span className="text-muted">Encrypted in an HttpOnly cookie (not readable by page scripts)</span>)}
       </section>
 
       <div className="flex flex-wrap gap-2">
         <button className="btn" onClick={exportCsv} disabled={lib.filesLoading}><Download className="size-4" /> Export file list (CSV)</button>
         <a className="btn" href="https://filester.me/account" target="_blank" rel="noreferrer"><ExternalLink className="size-4" /> Filester account settings</a>
-        <button className="btn text-danger ml-auto" onClick={signOut}><LogOut className="size-4" /> Sign out</button>
+        <button className="btn text-danger ml-auto" onClick={() => signOut()}><LogOut className="size-4" /> Sign out</button>
       </div>
 
       <section className="text-sm text-muted space-y-2">

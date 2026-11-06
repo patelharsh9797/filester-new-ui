@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from '@tanstack/react-router'
 import * as api from '../lib/api'
 import type { FileRow, FolderNode } from '../lib/types'
 import { useLibrary } from '../lib/library'
@@ -143,7 +143,7 @@ export function useActions() {
     },
 
     openFolder(id: string | null) {
-      navigate(id ? `/folders/${id}` : '/folders/root')
+      navigate({ to: '/folders/$id', params: { id: id ?? 'root' } })
     },
   }
 }

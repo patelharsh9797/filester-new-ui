@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Copy, Download, ExternalLink } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from '@tanstack/react-router'
 import { getFileInfo } from '../lib/api'
 import { formatBytes, formatDate, formatRelative } from '../lib/format'
 import type { FileRow } from '../lib/types'
@@ -16,7 +16,7 @@ export function FileInfoDialog({ file, onClose }: { file: FileRow; onClose: () =
   const rows: [string, React.ReactNode][] = [
     ['Size', `${formatBytes(file.size, 2)} (${file.size.toLocaleString()} bytes)`],
     ['Type', d?.type || file.type],
-    ['Folder', file.folder_id ? <Link className="text-accent-ink hover:underline" to={`/folders/${file.folder_id}`} onClick={onClose}>{file.folderPath || d?.folder_name}</Link> : 'Top level'],
+    ['Folder', file.folder_id ? <Link className="text-accent-ink hover:underline" to="/folders/$id" params={{ id: file.folder_id }} onClick={onClose}>{file.folderPath || d?.folder_name}</Link> : 'Top level'],
     ['Uploaded', formatDate(file.created_at)],
     ['Views', d ? d.views.toLocaleString() : '…'],
     ['Downloads', (d?.downloads ?? file.downloads).toLocaleString()],

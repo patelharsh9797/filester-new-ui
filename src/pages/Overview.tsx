@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from '@tanstack/react-router'
 import { ArrowRight, FolderPlus, Search, Upload } from 'lucide-react'
 import { useAccount, useLibrary } from '../lib/library'
 import { formatBytes, formatRelative, KIND_LABELS } from '../lib/format'
@@ -26,9 +26,12 @@ export function OverviewPage() {
   const totalSize = lib.files.reduce((n, f) => n + f.size, 0)
   const acct = account.data
 
-  const stat = (label: string, value: React.ReactNode, sub?: React.ReactNode, to?: string) => {
+  const stat = (label: string, value: React.ReactNode, sub?: React.ReactNode, to?: '/folders' | '/files' | 'root') => {
     const body = (<><div className="text-xs text-muted">{label}</div><div className="text-2xl font-semibold mt-1 tabular">{value}</div>{sub && <div className="text-xs text-faint mt-0.5">{sub}</div>}</>)
-    return to ? <Link to={to} className="card p-4 hover:border-faint/40 transition-colors">{body}</Link> : <div className="card p-4">{body}</div>
+    const cls = 'card p-4 hover:border-faint/40 transition-colors'
+    if (to === 'root') return <Link to="/folders/$id" params={{ id: 'root' }} className={cls}>{body}</Link>
+    if (to) return <Link to={to} className={cls}>{body}</Link>
+    return <div className="card p-4">{body}</div>
   }
 
   return (
@@ -47,7 +50,7 @@ export function OverviewPage() {
         {stat('Storage used', acct ? formatBytes(acct.storage_used) : '…', acct ? `of ${formatBytes(acct.storage_limit, 0)} · ${((acct.storage_used / acct.storage_limit) * 100).toFixed(1)}%` : undefined)}
         {stat('Folders', lib.foldersLoading ? '…' : lib.folders.length.toLocaleString(), `${lib.roots.length} top-level`, '/folders')}
         {stat('Files', lib.filesLoading ? '…' : lib.files.length.toLocaleString(), lib.filesLoading ? undefined : `${formatBytes(totalSize)} total`, '/files')}
-        {stat('Unfiled files', lib.filesLoading ? '…' : lib.rootFiles.length.toLocaleString(), 'not in any folder', '/folders/root')}
+        {stat('Unfiled files', lib.filesLoading ? '…' : lib.rootFiles.length.toLocaleString(), 'not in any folder', 'root')}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -65,7 +68,7 @@ export function OverviewPage() {
             {lib.foldersLoading ? <div className="p-3"><Skeleton rows={4} /></div>
               : recentFolders.length === 0 ? <p className="p-4 text-sm text-faint">No folders yet.</p>
               : recentFolders.map((f) => (
-                <Link key={f.id} to={`/folders/${f.id}`} className="flex items-center gap-3 px-3 py-2.5 hover:bg-raised">
+                <Link key={f.id} to="/folders/$id" params={{ id: f.id }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-raised">
                   <FolderIcon className="size-5 shrink-0" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm truncate">{f.name}</span>
@@ -81,7 +84,7 @@ export function OverviewPage() {
               <h2 className="font-semibold pt-2">Largest folders</h2>
               <div className="card p-3 space-y-2.5">
                 {biggestFolders.map((f) => (
-                  <Link key={f.id} to={`/folders/${f.id}`} className="block group">
+                  <Link key={f.id} to="/folders/$id" params={{ id: f.id }} className="block group">
                     <div className="flex justify-between text-sm"><span className="truncate group-hover:underline">{f.name}</span><span className="text-faint tabular text-xs">{formatBytes(f.totalSize)}</span></div>
                     <div className="h-1.5 mt-1 rounded-full bg-raised overflow-hidden"><div className="h-full bg-folder" style={{ width: `${(f.totalSize / biggestFolders[0].totalSize) * 100}%` }} /></div>
                   </Link>
@@ -95,7 +98,7 @@ export function OverviewPage() {
               <h2 className="font-semibold pt-2">By type</h2>
               <div className="card divide-y divide-line">
                 {byKind.map(([kind, v]) => (
-                  <Link key={kind} to={`/files?kind=${kind}`} className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-raised">
+                  <Link key={kind} to="/files" search={{ kind }} className="flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-raised">
                     <FileKindIcon kind={kind} /><span className="flex-1">{KIND_LABELS[kind]}</span>
                     <span className="text-xs text-faint tabular">{v.n} · {formatBytes(v.size)}</span>
                   </Link>

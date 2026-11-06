@@ -11,7 +11,7 @@ Filester has **two** API surfaces:
 | Web-app API (used by `/manager`, `/account`, …) | `https://filester.me/api` | `auth_token` cookie (JWT) | same-origin only |
 
 Because neither allows other origins, a browser app must go through a proxy —
-that is what `server/index.mjs` does.
+that is what `src/routes/api/fs/$.ts` (a Cloudflare Worker route) does.
 
 The **API key** is shown on `https://filester.me/account` (`#apiKeyValue`) and
 can be regenerated there. The **session JWT** comes from `/auth/login`

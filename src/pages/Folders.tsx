@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { ArrowDown, ArrowUp, ChevronRight, Copy, ExternalLink, FolderInput, FolderPlus, Globe, List, ListTree, Lock, Pencil, Search, Trash2, X } from 'lucide-react'
 import { useLibrary } from '../lib/library'
 import { normalize, score } from '../lib/search'
@@ -20,24 +20,24 @@ export function FoldersPage() {
   const lib = useLibrary()
   const actions = useActions()
   const toast = useToast()
-  const [params, setParams] = useSearchParams()
-  const q = params.get('q') ?? ''
-  const vis = (params.get('vis') as Vis) || 'all'
-  const show = (params.get('show') as Show) || 'all'
-  const view = params.get('view') === 'tree' ? 'tree' : 'list'
-  const sortParam = params.get('sort') as SortKey | null
-  const dir = params.get('dir') === 'asc' ? 1 : params.get('dir') === 'desc' ? -1 : null
+  const params = useSearch({ from: '/_app/folders/' })
+  const navigate = useNavigate({ from: '/folders/' })
+  const q = params.q ?? ''
+  const vis = (params.vis as Vis) || 'all'
+  const show = (params.show as Show) || 'all'
+  const view = params.view === 'tree' ? 'tree' : 'list'
+  const sortParam = (params.sort as SortKey | undefined) ?? null
+  const dir = params.dir === 'asc' ? 1 : params.dir === 'desc' ? -1 : null
   const sort: SortKey = sortParam ?? (q ? 'relevance' : 'path')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const set = (k: string, v: string | null) => setParams((p) => {
-    const n = new URLSearchParams(p)
-    if (v === null || v === '') n.delete(k)
-    else n.set(k, v)
-    if (k === 'q') { n.delete('sort'); n.delete('dir') }
-    return n
-  }, { replace: true })
+  type Key = 'q' | 'vis' | 'show' | 'view' | 'sort' | 'dir'
+  const set = (k: Key, v: string | null) => navigate({
+    search: (prev) => ({ ...prev, [k]: v || undefined, ...(k === 'q' ? { sort: undefined, dir: undefined } : {}) }),
+    replace: true,
+  })
+  const clearAll = () => navigate({ search: {}, replace: true })
 
   // Focus search with "f"
   useEffect(() => {
@@ -89,7 +89,7 @@ export function FoldersPage() {
       <button className="inline-flex items-center gap-1 hover:text-ink uppercase" onClick={() => {
         const defDir = key === 'name' || key === 'path' ? 1 : -1
         const nextDir = sort === key ? -(dir ?? defDir) : defDir
-        setParams((p) => { const n = new URLSearchParams(p); n.set('sort', key); n.set('dir', nextDir === 1 ? 'asc' : 'desc'); return n }, { replace: true })
+        navigate({ search: (prev) => ({ ...prev, sort: key, dir: nextDir === 1 ? 'asc' : 'desc' }), replace: true })
       }}>
         {label}{sort === key && ((dir ?? (key === 'name' || key === 'path' ? 1 : -1)) === 1 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
       </button>
@@ -107,7 +107,7 @@ export function FoldersPage() {
     { label: 'Delete', icon: <Trash2 className="size-4" />, danger: true, onClick: () => actions.deleteFolders([f]) },
   ]
 
-  const chip = (k: string, v: string, label: React.ReactNode, cur: string) => (
+  const chip = (k: Key, v: string, label: React.ReactNode, cur: string) => (
     <button className={cur === v ? 'chip-active' : 'chip'} onClick={() => set(k, v === 'all' ? null : v)}>{label}</button>
   )
 
@@ -149,7 +149,7 @@ export function FoldersPage() {
         : view === 'tree' ? <TreeView matches={matches} query={q} menuFor={menuFor} />
         : sorted.length === 0 ? (
           <div className="card p-10 text-center text-sm text-faint">
-            {lib.folders.length === 0 ? 'No folders yet.' : <>No folders match{q && <> “{q}”</>}. <button className="text-accent-ink underline" onClick={() => setParams({}, { replace: true })}>Clear filters</button></>}
+            {lib.folders.length === 0 ? 'No folders yet.' : <>No folders match{q && <> “{q}”</>}. <button className="text-accent-ink underline" onClick={clearAll}>Clear filters</button></>}
           </div>
         ) : (
           <div className="card overflow-hidden">
@@ -180,7 +180,7 @@ export function FoldersPage() {
                     <tr key={f.id} className={`border-b border-line last:border-0 ${selected.has(f.id) ? 'bg-accent-soft/50' : 'hover:bg-raised'}`}>
                       <td className="pl-4"><input type="checkbox" aria-label={`Select ${f.name}`} checked={selected.has(f.id)} onChange={() => toggle(f.id)} /></td>
                       <td className="td max-w-0 w-full">
-                        <Link to={`/folders/${f.id}`} className="flex items-center gap-2.5 min-w-0 group">
+                        <Link to="/folders/$id" params={{ id: f.id }} className="flex items-center gap-2.5 min-w-0 group">
                           <FolderIcon className="size-5 shrink-0" />
                           <span className="min-w-0">
                             <span className="block truncate font-medium group-hover:underline"><Highlight text={f.name} query={q} /></span>
@@ -233,7 +233,7 @@ function TreeView({ matches, query, menuFor }: { matches: FolderNode[]; query: s
             onClick={() => setCollapsed((s) => { const n = new Set(s); if (n.has(f.id)) n.delete(f.id); else n.add(f.id); return n })}>
             <ChevronRight className={`size-4 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
           </button>
-          <Link to={`/folders/${f.id}`} className={`flex-1 min-w-0 flex items-center gap-2 py-2 text-sm ${dim ? 'opacity-50' : ''}`}>
+          <Link to="/folders/$id" params={{ id: f.id }} className={`flex-1 min-w-0 flex items-center gap-2 py-2 text-sm ${dim ? 'opacity-50' : ''}`}>
             <FolderIcon className="size-4 shrink-0" open={!isCollapsed && kids.length > 0} />
             <span className="truncate hover:underline"><Highlight text={f.name} query={query} /></span>
             {!f.public && <Lock className="size-3 text-faint shrink-0" />}

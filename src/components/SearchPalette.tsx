@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from '@tanstack/react-router'
 import { CornerDownLeft, Search } from 'lucide-react'
 import { useLibrary } from '../lib/library'
 import { searchItems } from '../lib/search'
@@ -44,13 +44,14 @@ export function SearchPalette({ onClose, initialScope = 'all' }: { onClose: () =
   const go = (r: Result | undefined) => {
     if (!r) return
     onClose()
-    if (r.type === 'folder') navigate(`/folders/${r.id}`)
-    else navigate(`/folders/${r.folder ?? 'root'}?file=${r.slug}`)
+    if (r.type === 'folder') navigate({ to: '/folders/$id', params: { id: r.id } })
+    else navigate({ to: '/folders/$id', params: { id: r.folder ?? 'root' }, search: { file: r.slug } })
   }
 
   const seeAll = () => {
     onClose()
-    navigate(scope === 'folders' ? `/folders?q=${encodeURIComponent(q)}` : `/files?q=${encodeURIComponent(q)}`)
+    if (scope === 'folders') navigate({ to: '/folders', search: { q } })
+    else navigate({ to: '/files', search: { q } })
   }
 
   const onKey = (e: React.KeyboardEvent) => {
