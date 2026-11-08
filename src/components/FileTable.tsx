@@ -10,6 +10,8 @@ import { copyText, useActions } from '../state/actions'
 import { useToast } from '../state/toast'
 import { useOpenDialog } from '../state/dialogs'
 import { FileInfoDialog } from './FileInfo'
+import { ExpiryBadge } from './ExpiryBadge'
+import { useExpiring } from '../lib/expiry'
 
 export type FileSort = 'name' | 'size' | 'date' | 'downloads' | 'folder'
 const PAGE = 100
@@ -28,6 +30,8 @@ export function FileTable({ files, showFolder = true, query = '', highlight, emp
   const actions = useActions()
   const toast = useToast()
   const openDialog = useOpenDialog()
+  const expiring = useExpiring()
+  const atRisk = useMemo(() => new Map(expiring.files.filter((x) => x.level === 'critical' || x.level === 'soon').map((x) => [x.id, x])), [expiring.files])
   const [sort, setSort] = useState<{ key: FileSort; dir: 1 | -1 } | null>(sorted ? null : { key: defaultSort, dir: defaultSort === 'name' || defaultSort === 'folder' ? 1 : -1 })
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [limit, setLimit] = useState(PAGE)
@@ -135,6 +139,7 @@ export function FileTable({ files, showFolder = true, query = '', highlight, emp
                     <button className="flex items-center gap-2.5 min-w-0 max-w-full text-left" onClick={() => showInfo(f)}>
                       <FileKindIcon kind={f.kind} />
                       <span className="truncate hover:underline" title={f.name}><Highlight text={f.name} query={query} /></span>
+                      {atRisk.has(f.id) && <ExpiryBadge compact daysLeft={atRisk.get(f.id)!.daysLeft} level={atRisk.get(f.id)!.level} />}
                     </button>
                   </td>
                   {showFolder && (

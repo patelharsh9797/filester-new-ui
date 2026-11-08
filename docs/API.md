@@ -125,5 +125,5 @@ Seen in the site's JavaScript *(from JS only, not exercised)*:
 - Thumbnail: `/t/<uuid>`
 
 ## Policies worth knowing
-- Files are deleted after **45 days without views or downloads**.
+- Files are deleted after inactivity. The **FAQ says 35 days without downloads**; the **API docs say 45 days without views or downloads**. `last_viewed` / `last_downloaded` per file are available in `/api/files/export.csv`, and both are set to the upload time on upload.
 - Private folders can't have a password.

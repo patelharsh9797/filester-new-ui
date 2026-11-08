@@ -12,6 +12,7 @@ Personal-use tool. It runs on Cloudflare Workers and talks to Filester's own API
 - 🗂 **Folder pages.** Breadcrumbs, subfolder cards, files with an "include subfolders" toggle, and in-folder search.
 - 🌲 **Sidebar folder tree.** Expands to the folder you're viewing.
 - ⬆️ **Uploads.** Drag and drop anywhere to upload into the current folder. Files go up in chunks with retries using Filester's v2 protocol (up to 10 GB each).
+- ⏳ **Expiring soon.** Filester deletes files after a stretch with no downloads. A dedicated page shows how many days each file has left, an Overview banner and a sidebar badge warn you about anything due within 7 days, and red or amber badges appear next to at-risk files in every list. You can count from the FAQ rule (35 days without downloads, the default) or the API-docs rule (45 days without views or downloads).
 - ✏️ **Editing.** Rename files and folders, move with a searchable folder picker, change public or private, delete.
 - 🔐 **Password safeguard.** Editing a password-protected folder can't drop its password by accident. Filester's own endpoint does this when the password field is blank.
 

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppExpiringRouteImport } from './routes/_app/expiring'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppFoldersIndexRouteImport } from './routes/_app/folders/index'
@@ -30,6 +31,11 @@ const LoginRoute = LoginRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExpiringRoute = AppExpiringRouteImport.update({
+  id: '/expiring',
+  path: '/expiring',
   getParentRoute: () => AppRoute,
 } as any)
 const AppFilesRoute = AppFilesRouteImport.update({
@@ -61,6 +67,7 @@ const ApiFsSplatRoute = ApiFsSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/expiring': typeof AppExpiringRoute
   '/files': typeof AppFilesRoute
   '/settings': typeof AppSettingsRoute
   '/folders/$id': typeof AppFoldersIdRoute
@@ -69,6 +76,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/expiring': typeof AppExpiringRoute
   '/files': typeof AppFilesRoute
   '/settings': typeof AppSettingsRoute
   '/': typeof AppIndexRoute
@@ -80,6 +88,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/expiring': typeof AppExpiringRoute
   '/_app/files': typeof AppFilesRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/': typeof AppIndexRoute
@@ -92,6 +101,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/expiring'
     | '/files'
     | '/settings'
     | '/folders/$id'
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/expiring'
     | '/files'
     | '/settings'
     | '/'
@@ -110,6 +121,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/login'
+    | '/_app/expiring'
     | '/_app/files'
     | '/_app/settings'
     | '/_app/'
@@ -145,6 +157,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/expiring': {
+      id: '/_app/expiring'
+      path: '/expiring'
+      fullPath: '/expiring'
+      preLoaderRoute: typeof AppExpiringRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/files': {
@@ -186,6 +205,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppExpiringRoute: typeof AppExpiringRoute
   AppFilesRoute: typeof AppFilesRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -194,6 +214,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppExpiringRoute: AppExpiringRoute,
   AppFilesRoute: AppFilesRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,

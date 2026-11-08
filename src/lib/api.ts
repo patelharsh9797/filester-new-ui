@@ -1,3 +1,4 @@
+import { parseCsv } from './csv'
 import type { Account, FileInfo, FileItem, Folder, FolderInfo, Pagination } from './types'
 
 export class ApiError extends Error {
@@ -41,6 +42,44 @@ async function request<T>(base: Base, path: string, init: RequestInit = {}): Pro
     throw new ApiError(d?.message || `Request failed (${res.status})`, res.status)
   }
   return data as T
+}
+
+export interface FileActivity {
+  uploadDate: string
+  lastViewed: string
+  lastDownloaded: string
+  views: number
+  downloads: number
+}
+
+/**
+ * Last view/download dates for every file, from Filester's CSV export
+ * (web endpoint, one request). Keyed by file slug.
+ */
+export async function getActivity(): Promise<Map<string, FileActivity>> {
+  const res = await fetch('/api/fs/web/files/export.csv', { credentials: 'same-origin' })
+  if (res.status === 401) {
+    onUnauthorized?.()
+    throw new ApiError('Session expired — please sign in again', 401)
+  }
+  const text = await res.text()
+  if (!res.ok || text.trimStart().startsWith('{')) {
+    let message = `Couldn't load file activity (${res.status})`
+    try { message = (JSON.parse(text) as { message?: string }).message || message } catch { /* not JSON */ }
+    throw new ApiError(message, res.status)
+  }
+  const map = new Map<string, FileActivity>()
+  for (const r of parseCsv(text)) {
+    if (!r.slug) continue
+    map.set(r.slug, {
+      uploadDate: r.upload_date,
+      lastViewed: r.last_viewed,
+      lastDownloaded: r.last_downloaded,
+      views: Number(r.views) || 0,
+      downloads: Number(r.downloads) || 0,
+    })
+  }
+  return map
 }
 
 const post = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) })

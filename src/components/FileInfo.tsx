@@ -8,11 +8,15 @@ import { Modal } from '../state/dialogs'
 import { copyText } from '../state/actions'
 import { useToast } from '../state/toast'
 import { FileKindIcon } from './icons'
+import { ExpiryBadge } from './ExpiryBadge'
+import { RULES, useExpiring } from '../lib/expiry'
 
 export function FileInfoDialog({ file, onClose }: { file: FileRow; onClose: () => void }) {
   const toast = useToast()
   const info = useQuery({ queryKey: ['file-info', file.slug], queryFn: () => getFileInfo(file.slug) })
   const d = info.data
+  const expiring = useExpiring()
+  const e = expiring.files.find((x) => x.id === file.id)
   const rows: [string, React.ReactNode][] = [
     ['Size', `${formatBytes(file.size, 2)} (${file.size.toLocaleString()} bytes)`],
     ['Type', d?.type || file.type],
@@ -22,6 +26,7 @@ export function FileInfoDialog({ file, onClose }: { file: FileRow; onClose: () =
     ['Downloads', (d?.downloads ?? file.downloads).toLocaleString()],
     ['Last viewed', d ? formatRelative(d.last_viewed) : '…'],
     ['Last downloaded', d ? formatRelative(d.last_downloaded) : '…'],
+    ['Deleted around', e ? <span className="inline-flex flex-wrap items-center gap-2"><ExpiryBadge daysLeft={e.daysLeft} level={e.level} /><span className="text-xs text-faint">{formatDate(e.expiresAt)} · rule: {RULES[expiring.rule].label}</span></span> : '…'],
     ['MD5', d?.md5 ? <span className="font-mono text-xs break-all">{d.md5}</span> : '—'],
     ['Slug', <span className="font-mono text-xs">{file.slug}</span>],
   ]

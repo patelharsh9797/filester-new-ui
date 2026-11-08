@@ -59,6 +59,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
           qc.invalidateQueries({ queryKey: ['files'] })
           qc.invalidateQueries({ queryKey: ['folders'] })
           qc.invalidateQueries({ queryKey: ['account'] })
+          qc.invalidateQueries({ queryKey: ['activity'] })
         },
         (e: Error) => setItems((list) => list.map((i) => (i.id === item.id && i.status !== 'cancelled' ? { ...i, status: 'error', error: e.message } : i))),
       ).finally(() => handles.current.delete(item.id))

@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, FolderPlus, Search, Upload } from 'lucide-react'
+import { ArrowRight, FolderPlus, Hourglass, Search, Upload } from 'lucide-react'
 import { useAccount, useLibrary } from '../lib/library'
+import { useExpiring } from '../lib/expiry'
 import { formatBytes, formatRelative, KIND_LABELS } from '../lib/format'
 import { useShell } from '../components/Layout'
 import { useActions } from '../state/actions'
@@ -12,6 +13,7 @@ import type { FileKind } from '../lib/types'
 export function OverviewPage() {
   const lib = useLibrary()
   const account = useAccount()
+  const expiring = useExpiring()
   const { openSearch, openUpload } = useShell()
   const actions = useActions()
 
@@ -45,6 +47,19 @@ export function OverviewPage() {
         <button className="btn" onClick={() => actions.newFolder(null)}><FolderPlus className="size-4" /> New folder</button>
         <button className="btn-primary" onClick={() => openUpload(null)}><Upload className="size-4" /> Upload</button>
       </div>
+
+      {expiring.urgent > 0 && (
+        <Link to="/expiring" search={{ within: '7' }}
+          className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${expiring.counts.critical ? 'border-danger/40 bg-danger-soft' : 'border-accent/40 bg-accent-soft'}`}>
+          <Hourglass className={`size-5 shrink-0 ${expiring.counts.critical ? 'text-danger' : 'text-accent-ink'}`} />
+          <span className="flex-1 text-sm">
+            <span className="font-semibold">{expiring.urgent} {expiring.urgent === 1 ? 'file' : 'files'} may be deleted by Filester within 7 days</span>
+            {expiring.counts.critical > 0 && <span className="text-muted"> — {expiring.counts.critical} within 3 days</span>}
+            <span className="block text-xs text-muted">Download or back up anything you want to keep.</span>
+          </span>
+          <span className="text-sm font-medium inline-flex items-center gap-1 whitespace-nowrap">Review <ArrowRight className="size-3.5" /></span>
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {stat('Storage used', acct ? formatBytes(acct.storage_used) : '…', acct ? `of ${formatBytes(acct.storage_limit, 0)} · ${((acct.storage_used / acct.storage_limit) * 100).toFixed(1)}%` : undefined)}
