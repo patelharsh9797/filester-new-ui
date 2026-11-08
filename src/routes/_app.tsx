@@ -7,6 +7,7 @@ import { UploadProvider } from '../state/uploads'
 import { BackupProvider } from '../state/backups'
 import { TaskProvider } from '../state/tasks'
 import { Layout } from '../components/Layout'
+import { InstallPrompt } from '../components/InstallPrompt'
 import { goToLogin } from '../state/session'
 
 /**
@@ -33,6 +34,7 @@ function AppShell() {
         <TaskProvider>
           <DialogProvider>
             <Layout />
+            <InstallPrompt />
           </DialogProvider>
         </TaskProvider>
       </BackupProvider>

@@ -1,4 +1,5 @@
-import { Download, ExternalLink, LogOut } from 'lucide-react'
+import { Check, Download, ExternalLink, LogOut, Share, Smartphone, SquarePlus } from 'lucide-react'
+import { usePwaInstall } from '../lib/pwa'
 import { useSession, useSignOut } from '../state/session'
 import { useAccount, useLibrary } from '../lib/library'
 import { formatBytes } from '../lib/format'
@@ -10,6 +11,7 @@ export function SettingsPage() {
   const lib = useLibrary()
   const exp = session.exp
   const a = account.data
+  const pwa = usePwaInstall()
 
   const exportCsv = () => {
     const rows = [['name', 'folder', 'size_bytes', 'type', 'uploaded', 'downloads', 'url']]
@@ -41,6 +43,30 @@ export function SettingsPage() {
         <a className="btn" href="https://filester.me/account" target="_blank" rel="noreferrer"><ExternalLink className="size-4" /> Filester account settings</a>
         <button className="btn text-danger ml-auto" onClick={() => signOut()}><LogOut className="size-4" /> Sign out</button>
       </div>
+
+      <section className="card p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <img src="/icons/icon-192.png" alt="" className="size-10 rounded-xl" />
+          <div className="flex-1">
+            <h2 className="font-semibold flex items-center gap-1.5"><Smartphone className="size-4" /> Install as an app</h2>
+            <p className="text-xs text-muted">Full screen, its own icon, opens like any other app on your phone or computer.</p>
+          </div>
+          {pwa.installed
+            ? <span className="inline-flex items-center gap-1 text-sm text-ok"><Check className="size-4" /> Installed</span>
+            : pwa.canPrompt && <button className="btn-primary" onClick={() => pwa.install()}><Download className="size-4" /> Install</button>}
+        </div>
+        {!pwa.installed && !pwa.canPrompt && (
+          <div className="text-sm text-muted border-t border-line pt-3 space-y-1.5">
+            {pwa.ios ? <>
+              <p className="flex items-center gap-1.5"><b className="text-ink">iPhone / iPad:</b> in Safari tap <Share className="size-4 text-accent-ink" /> Share → <SquarePlus className="size-4 text-accent-ink" /> Add to Home Screen.</p>
+            </> : <>
+              <p><b className="text-ink">Android (Chrome):</b> menu ⋮ → <i>Install app</i> or <i>Add to Home screen</i>.</p>
+              <p><b className="text-ink">Desktop Chrome / Edge:</b> the install icon at the right end of the address bar.</p>
+              <p><b className="text-ink">iPhone / iPad:</b> open this site in Safari → Share → Add to Home Screen.</p>
+            </>}
+          </div>
+        )}
+      </section>
 
       <section className="text-sm text-muted space-y-2">
         <h2 className="font-semibold text-ink">Keyboard shortcuts</h2>
