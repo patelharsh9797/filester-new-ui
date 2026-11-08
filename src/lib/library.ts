@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getAccount, getAllFiles, getFolders } from './api'
+import { getAccount, getFileListing, getFolders } from './api'
 import { extOf, kindOf, slugOf } from './format'
 import type { FileItem, FileRow, Folder, FolderNode } from './types'
 
@@ -104,11 +104,11 @@ export function useLibrary() {
   const foldersQ = useQuery({ queryKey: ['folders'], queryFn: getFolders, staleTime: 5 * 60_000 })
   const filesQ = useQuery({
     queryKey: ['files'],
-    queryFn: () => getAllFiles((loaded, total) => setProgress({ loaded, total })),
+    queryFn: () => getFileListing((loaded, total) => setProgress({ loaded, total })),
     staleTime: 5 * 60_000,
   })
   const index = useMemo(
-    () => buildIndex(foldersQ.data ?? [], filesQ.data ?? []),
+    () => buildIndex(foldersQ.data ?? [], filesQ.data?.files ?? []),
     [foldersQ.data, filesQ.data],
   )
   return {
@@ -119,5 +119,8 @@ export function useLibrary() {
     fetching: foldersQ.isFetching || filesQ.isFetching,
     error: foldersQ.error || filesQ.error,
     progress,
+    /** Last view/download dates (from the export), or null if unavailable */
+    activity: filesQ.data?.activity ?? null,
+    activityError: filesQ.data?.exportError ?? null,
   }
 }

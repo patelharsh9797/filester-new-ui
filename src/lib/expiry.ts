@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { getActivity, type FileActivity } from './api'
+import type { FileActivity } from './api'
 import { useLibrary } from './library'
 import type { FileRow } from './types'
 
@@ -75,14 +74,13 @@ export function computeExpiry(file: FileRow, activity: FileActivity | null, rule
 export function useExpiring() {
   const lib = useLibrary()
   const [rule] = useExpiryRule()
-  const activity = useQuery({ queryKey: ['activity'], queryFn: getActivity, staleTime: 10 * 60_000 })
 
   const files = useMemo(() => {
-    const map = activity.data
+    const map = lib.activity
     return lib.files
       .map((f) => computeExpiry(f, map?.get(f.slug) ?? null, rule))
       .sort((a, b) => a.daysLeft - b.daysLeft)
-  }, [lib.files, activity.data, rule])
+  }, [lib.files, lib.activity, rule])
 
   const counts = useMemo(() => {
     const c = { critical: 0, soon: 0, watch: 0, ok: 0 }
@@ -96,9 +94,9 @@ export function useExpiring() {
     /** Files deleted within 7 days */
     urgent: counts.critical + counts.soon,
     rule,
-    loading: lib.filesLoading || activity.isPending,
-    activityError: activity.error as Error | null,
+    loading: lib.filesLoading,
+    activityError: lib.activityError ? new Error(lib.activityError) : null,
     /** True when activity data is missing and we fell back to upload dates */
-    estimated: !activity.data,
+    estimated: !lib.activity,
   }
 }

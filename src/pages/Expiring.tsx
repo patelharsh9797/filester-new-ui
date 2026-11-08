@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { AlertTriangle, Check, Copy, DatabaseBackup, Download, ExternalLink, FolderInput, Info, Loader2, Search, Trash2, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, Check, Copy, DatabaseBackup, Download, ExternalLink, FolderInput, Info, Loader2, Search, Trash2, X } from 'lucide-react'
 import { LEVELS, RULES, useExpiring, useExpiryRule, type ExpiringFile, type ExpiryRule } from '../lib/expiry'
 import { searchItems } from '../lib/search'
-import { formatBytes, formatDate, formatRelative } from '../lib/format'
+import { formatBytes, formatDate, formatRelative, KIND_LABELS } from '../lib/format'
+import type { FileKind } from '../lib/types'
 import { ExpiryBadge } from '../components/ExpiryBadge'
 import { FileKindIcon, FolderIcon } from '../components/icons'
 import { Highlight } from '../components/Highlight'
@@ -18,6 +19,10 @@ import { Skeleton } from './Overview'
 
 const WINDOWS = { '3': 3, '7': 7, '14': 14, '30': 30, all: Infinity } as const
 type Win = keyof typeof WINDOWS
+type SortKey = 'left' | 'name' | 'size' | 'download' | 'view' | 'folder'
+const SORT_DEFAULT_DIR: Record<SortKey, 1 | -1> = { left: 1, name: 1, size: -1, download: 1, view: 1, folder: 1 }
+const BACKUP_FILTERS = { all: 'Any backup state', none: 'Not backed up', done: 'Backed up', active: 'Backing up', failed: 'Backup failed' } as const
+type BackupFilter = keyof typeof BACKUP_FILTERS
 
 export function ExpiringPage() {
   const params = useSearch({ from: '/_app/expiring' })
@@ -41,12 +46,56 @@ export function ExpiringPage() {
 
   const win: Win = params.within && params.within in WINDOWS ? (params.within as Win) : '14'
   const q = params.q ?? ''
-  const set = (k: 'within' | 'q', v: string | null) => navigate({ search: (p) => ({ ...p, [k]: v || undefined }), replace: true })
+  const sort: SortKey | null = params.sort && params.sort in SORT_DEFAULT_DIR ? (params.sort as SortKey) : null
+  const dir: 1 | -1 = params.dir === 'desc' ? -1 : params.dir === 'asc' ? 1 : sort ? SORT_DEFAULT_DIR[sort] : 1
+  const bf: BackupFilter = params.backup && params.backup in BACKUP_FILTERS ? (params.backup as BackupFilter) : 'all'
+  const kind = (params.kind as FileKind | undefined) ?? null
+  type Key = 'within' | 'q' | 'sort' | 'dir' | 'backup' | 'kind'
+  const set = (k: Key, v: string | null) => navigate({ search: (p) => ({ ...p, [k]: v || undefined }), replace: true })
+  const sortBy = (key: SortKey) => {
+    const nextDir = sort === key ? -dir : SORT_DEFAULT_DIR[key]
+    navigate({ search: (p) => ({ ...p, sort: key, dir: nextDir === 1 ? 'asc' : 'desc' }), replace: true })
+  }
+
+  const backupState = (f: ExpiringFile): Exclude<BackupFilter, 'all'> => {
+    const j = jobs.get(f.slug)
+    if (j?.status === 'queued' || j?.status === 'running') return 'active'
+    if (j?.status === 'error') return 'failed'
+    return backedUp.has(f.slug) || j?.status === 'done' ? 'done' : 'none'
+  }
+
+  const inWindow = useMemo(() => exp.files.filter((f) => f.daysLeft <= WINDOWS[win]), [exp.files, win])
+  const kindCounts = useMemo(() => {
+    const m = new Map<FileKind, number>()
+    for (const f of inWindow) m.set(f.kind, (m.get(f.kind) ?? 0) + 1)
+    return [...m.entries()].sort((a, b) => b[1] - a[1])
+  }, [inWindow])
 
   const rows = useMemo(() => {
-    const inWindow = exp.files.filter((f) => f.daysLeft <= WINDOWS[win])
-    return q ? searchItems(inWindow, q, (f) => f.name, (f) => f.folderPath) : inWindow
-  }, [exp.files, win, q])
+    let list = inWindow.filter((f) => (!kind || f.kind === kind) && (bf === 'all' || backupState(f) === bf))
+    if (q) list = searchItems(list, q, (f) => f.name, (f) => f.folderPath)
+    if (!sort) return list // already ordered by time left (or by relevance when searching)
+    const lastDl = (f: ExpiringFile) => f.activity?.lastDownloaded ?? f.created_at
+    const lastView = (f: ExpiringFile) => f.activity?.lastViewed ?? f.created_at
+    const cmp: Record<SortKey, (a: ExpiringFile, b: ExpiringFile) => number> = {
+      left: (a, b) => a.daysLeft - b.daysLeft,
+      name: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }),
+      size: (a, b) => a.size - b.size,
+      download: (a, b) => lastDl(a).localeCompare(lastDl(b)),
+      view: (a, b) => lastView(a).localeCompare(lastView(b)),
+      folder: (a, b) => a.folderPath.localeCompare(b.folderPath, undefined, { numeric: true }) || a.name.localeCompare(b.name),
+    }
+    return [...list].sort((a, b) => cmp[sort](a, b) * dir || a.daysLeft - b.daysLeft)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inWindow, q, kind, bf, sort, dir, jobs, backedUp])
+
+  const header = (key: SortKey, label: string, className = '') => (
+    <th className={`th ${className}`}>
+      <button className="inline-flex items-center gap-1 hover:text-ink uppercase" onClick={() => sortBy(key)}>
+        {label}{sort === key && (dir === 1 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
+      </button>
+    </th>
+  )
 
   const sel = rows.filter((r) => selected.has(r.id))
   const clear = () => setSelected(new Set())
@@ -107,14 +156,29 @@ export function ExpiringPage() {
           <option value="30">Next 30 days</option>
           <option value="all">All files</option>
         </select>
+        <select className="input w-auto" value={bf} onChange={(e) => set('backup', e.target.value === 'all' ? null : e.target.value)} aria-label="Backup state">
+          {Object.entries(BACKUP_FILTERS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
         <span className="text-xs text-faint">{rows.length} files · {formatBytes(atRiskSize)}</span>
       </div>
 
+      {kindCounts.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5 -mt-2">
+          <button className={!kind ? 'chip-active' : 'chip'} onClick={() => set('kind', null)}>All types</button>
+          {kindCounts.map(([k, n]) => (
+            <button key={k} className={kind === k ? 'chip-active' : 'chip'} onClick={() => set('kind', kind === k ? null : k)}>
+              <FileKindIcon kind={k} className="size-3.5" /> {KIND_LABELS[k]} <span className="opacity-60">{n}</span>
+            </button>
+          ))}
+          {(kind || bf !== 'all' || sort || q) && <button className="text-xs text-muted hover:text-ink underline ml-1" onClick={() => navigate({ search: (p) => ({ within: p.within }), replace: true })}>Reset filters</button>}
+        </div>
+      )}
+
       {exp.loading ? <Skeleton rows={6} /> : rows.length === 0 ? (
         <div className="card p-10 text-center">
-          <p className="font-medium">Nothing expiring in this window</p>
+          <p className="font-medium">Nothing to show</p>
           <p className="text-sm text-muted mt-1">
-            {win === 'all' ? 'No files yet.' : <>No files reach the limit in the next {WINDOWS[win]} days. <button className="text-accent-ink underline" onClick={() => set('within', '30')}>Look further ahead</button></>}
+            {win === 'all' ? 'No files yet.' : <>No files match in the next {WINDOWS[win]} days{kind || bf !== 'all' || q ? ' with these filters' : ''}. <button className="text-accent-ink underline" onClick={() => set('within', '30')}>Look further ahead</button></>}
           </p>
         </div>
       ) : (
@@ -134,11 +198,11 @@ export function ExpiringPage() {
               <thead className="border-b border-line">
                 <tr>
                   <th className="w-10 pl-4"><input type="checkbox" aria-label="Select all" checked={selected.size > 0 && sel.length === rows.length} onChange={() => setSelected(sel.length === rows.length ? new Set() : new Set(rows.map((r) => r.id)))} /></th>
-                  <th className="th">File</th>
-                  <th className="th text-right w-24">Size</th>
-                  <th className="th w-32 hidden md:table-cell">Last download</th>
-                  <th className="th w-32 hidden lg:table-cell">Last view</th>
-                  <th className="th w-36">Deleted around</th>
+                  {header('name', 'File')}
+                  {header('size', 'Size', 'text-right w-24')}
+                  {header('download', 'Last download', 'w-32 hidden md:table-cell')}
+                  {header('view', 'Last view', 'w-32 hidden lg:table-cell')}
+                  {header('left', 'Deleted around', 'w-36')}
                   <th className="w-12" />
                 </tr>
               </thead>

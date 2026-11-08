@@ -127,3 +127,60 @@ Seen in the site's JavaScript *(from JS only, not exercised)*:
 ## Policies worth knowing
 - Files are deleted after inactivity. The **FAQ says 35 days without downloads**; the **API docs say 45 days without views or downloads**. `last_viewed` / `last_downloaded` per file are available in `/api/files/export.csv`, and both are set to the upload time on upload.
 - Private folders can't have a password.
+
+---
+
+## Endpoints this app actually uses
+
+Every call from the browser goes to our own Worker first; the Worker calls Filester and attaches your credentials.
+
+### Filester — API key (`Authorization: Bearer`, host `u1.filester.me`)
+
+| # | Method & path | Used for | When |
+|---|---|---|---|
+| 1 | `GET /api/v1/account` | Storage used/limit, account info | App load (cached 1 min); also to check a pasted API key at sign-in |
+| 2 | `GET /api/v1/folders` | All folders (tree, paths, counts) | App load, after changes |
+| 3 | `GET /api/v1/files?page=&per_page=100` | File list | **Fallback only** — if the CSV export (#14) fails |
+| 4 | `POST /api/v1/folder` | Create folder / subfolder | New folder |
+| 5 | `POST /api/v1/folders/move` | Move folders | Move |
+| 6 | `POST /api/v1/files/move` | Move files (≤200 per call) | Move |
+| 7 | `POST /file/delete` | Delete files | Delete |
+| 8 | `POST /folder/delete` | Delete folders (and their files) | Delete |
+| 9 | `POST /api/v2/upload/init` · `PUT /api/v2/upload/chunk` · `POST /api/v2/upload/finish` · `POST /api/v2/upload/abort` | Chunked, resumable uploads | Upload |
+| 10 | `POST /api/v1/upload` | Single-request upload | Fallback if v2 upload is unavailable |
+
+Only uploads count against the rate limit (they return `X-RateLimit-Remaining`); read calls don't.
+
+### Filester — your session (`auth_token` cookie, host `filester.me`)
+
+| # | Method & path | Used for | When |
+|---|---|---|---|
+| 11 | `POST /auth/login` | Sign in (returns the session JWT) | Sign-in |
+| 12 | `GET /account` (HTML page) | Read your API key from the page | Sign-in |
+| 13 | `POST /v2/api/public/download` | Download token for a file. **Counts as a download on Filester.** | Each backup (plus a refresh if a token expires mid-copy) |
+| 14 | `GET /api/files/export.csv` | Entire file list + last view/download dates, in one request | App load, after changes, and 3 and 8 min after a backup batch |
+| 15 | `GET /api/file/info?id=<slug>` | Views, MD5, last viewed/downloaded | Opening file details |
+| 16 | `GET /api/folder/info?id=<id>` | Password/“hide related” status | Opening the edit-folder dialog |
+| 17 | `POST /api/file/update` | Rename file | Rename |
+| 18 | `POST /api/folder/edit` | Rename folder, public/private, password | Edit folder |
+
+### Filester CDN — no credentials (token in the URL)
+
+| # | Method & path | Used for |
+|---|---|---|
+| 19 | `GET https://fsc{1,2,3}.cdn.cr/v2/<file>?token=…&download=true` with `Range` | Copying file bytes into R2 during a backup (1-byte request for the size, then 64 MB ranges) |
+
+### Our own Worker (what the browser calls)
+
+| Path | Purpose |
+|---|---|
+| `/_serverFn/…` | TanStack Start server functions: `login`, `logout`, `getSession` |
+| `/api/fs/v1/*`, `/api/fs/u1/*`, `/api/fs/v2/*`, `/api/fs/web/*` | Pass-through to the Filester endpoints above |
+| `/api/backup/list` · `download` · `init` · `ticket` · `part` · `complete` · `abort` · `delete` | R2 backups |
+
+### Calls per action (566-file account)
+
+| Action | Before | Now |
+|---|---|---|
+| Open / reload the app | 2 key calls + 6 paged file calls + 1 export | 2 key calls (#1, #2) + 1 export (#14) |
+| Back up one file | 1 key call (`/api/v1/file/<id>`) + 1 token | 1 token (#13), no key calls |

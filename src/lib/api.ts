@@ -52,26 +52,60 @@ export interface FileActivity {
   downloads: number
 }
 
+export interface FileListing {
+  files: FileItem[]
+  /** Last view/download dates keyed by slug; null when only the API fallback worked */
+  activity: Map<string, FileActivity> | null
+  source: 'export' | 'api'
+  /** Why the export failed, when we fell back to the API */
+  exportError?: string
+}
+
 /**
- * Last view/download dates for every file, from Filester's CSV export
- * (web endpoint, one request). Keyed by file slug.
+ * Every file in the account. Uses Filester's CSV export (one web request,
+ * doesn't count against the API key, and includes last view/download dates);
+ * falls back to the paginated REST API (100 files per call) if that fails.
  */
-export async function getActivity(): Promise<Map<string, FileActivity>> {
+export async function getFileListing(onProgress?: (loaded: number, total: number) => void): Promise<FileListing> {
+  try {
+    return await getFromExport()
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) throw e
+    const files = await getAllFiles(onProgress)
+    return { files, activity: null, source: 'api', exportError: (e as Error).message }
+  }
+}
+
+async function getFromExport(): Promise<FileListing> {
   const res = await fetch('/api/fs/web/files/export.csv', { credentials: 'same-origin' })
   if (res.status === 401) {
     onUnauthorized?.()
     throw new ApiError('Session expired — please sign in again', 401)
   }
   const text = await res.text()
-  if (!res.ok || text.trimStart().startsWith('{')) {
-    let message = `Couldn't load file activity (${res.status})`
+  if (!res.ok || text.trimStart().startsWith('{') || text.trimStart().startsWith('<')) {
+    let message = `File export failed (${res.status})`
     try { message = (JSON.parse(text) as { message?: string }).message || message } catch { /* not JSON */ }
     throw new ApiError(message, res.status)
   }
-  const map = new Map<string, FileActivity>()
-  for (const r of parseCsv(text)) {
+  const rows = parseCsv(text)
+  if (rows.length && !('slug' in rows[0] && 'size_bytes' in rows[0])) throw new ApiError('Unexpected export format', 502)
+  const files: FileItem[] = []
+  const activity = new Map<string, FileActivity>()
+  for (const r of rows) {
     if (!r.slug) continue
-    map.set(r.slug, {
+    files.push({
+      id: Number(r.file_id) || 0,
+      uuid: r.uuid,
+      name: r.original_name,
+      size: Number(r.size_bytes) || 0,
+      type: r.type || 'application/octet-stream',
+      url: r.download_url || `https://filester.me/d/${r.slug}`,
+      folder_id: r.album_slug || null,
+      created_at: r.upload_date,
+      downloads: Number(r.downloads) || 0,
+    })
+    activity.set(r.slug, {
       uploadDate: r.upload_date,
       lastViewed: r.last_viewed,
       lastDownloaded: r.last_downloaded,
@@ -79,7 +113,7 @@ export async function getActivity(): Promise<Map<string, FileActivity>> {
       downloads: Number(r.downloads) || 0,
     })
   }
-  return map
+  return { files, activity, source: 'export' }
 }
 
 const post = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) })

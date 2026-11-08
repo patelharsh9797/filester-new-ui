@@ -19,7 +19,7 @@ export function UploadDock() {
   const loaded = items.reduce((n, i) => n + (i.status === 'done' ? i.file.size : i.loaded), 0)
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 w-[min(380px,calc(100vw-32px))] card shadow-2xl overflow-hidden">
+    <div className="card shadow-2xl overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-line">
         <Upload className="size-4 text-muted" />
         <span className="text-sm font-medium flex-1">

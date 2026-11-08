@@ -43,7 +43,7 @@ const RETRYABLE = new Set([0, 429, 500, 502, 503, 504])
 
 /** Copy one Filester file into R2. Resolves with the stored backup. */
 export async function runBackup(
-  file: { slug: string; folder: string },
+  file: { slug: string; folder: string; type?: string },
   onProgress: (copied: number, total: number) => void,
   signal: AbortSignal,
 ): Promise<BackupInfo> {

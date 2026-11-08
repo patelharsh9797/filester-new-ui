@@ -56,14 +56,16 @@ export { BackupError }
 
 // ---------------------------------------------------------------- Filester
 
-async function fileMeta(session: Session, slug: string) {
-  const { U1 } = filesterOrigins()
-  const r = await fetch(`${U1}/api/v1/file/${encodeURIComponent(slug)}`, {
-    headers: { authorization: `Bearer ${session.apiKey}`, 'user-agent': UA },
-  })
-  const j = (await r.json().catch(() => ({}))) as { success?: boolean; message?: string; data?: { slug: string; name: string; size: number; type: string } }
-  if (!r.ok || !j.success || !j.data) throw new BackupError(j.message || `File not found on Filester (${r.status})`, r.status === 404 ? 404 : 502)
-  return j.data
+/** Size from the CDN without downloading the file (a 1-byte range request). */
+async function remoteSize(t: DownloadTicket): Promise<number> {
+  const r = await fetch(cdnUrl(t), { headers: { range: 'bytes=0-0', 'user-agent': UA } })
+  await r.body?.cancel()
+  if (r.status === 401 || r.status === 403 || r.status === 410) throw new BackupError('Download token rejected or expired', 409, 'TOKEN')
+  if (r.status === 416) return 0 // empty file
+  const total = /\/(\d+)\s*$/.exec(r.headers.get('content-range') ?? '')?.[1]
+  if (r.status === 206 && total) return Number(total)
+  if (r.status === 200 && r.headers.get('content-length')) return Number(r.headers.get('content-length'))
+  throw new BackupError(`Couldn't read the file size from Filester (${r.status})`, 502)
 }
 
 /** Same call Filester's own download button makes; tokens last 30 minutes. */
@@ -145,15 +147,16 @@ export type InitResult =
   | { done: true; backup: BackupInfo }
   | { done: false; key: string; uploadId: string; size: number; partSize: number; parts: number; ticket: DownloadTicket }
 
-export async function initBackup(session: Session, slug: string, folder: string): Promise<InitResult> {
-  const meta = await fileMeta(session, slug)
+export async function initBackup(session: Session, slug: string, folder: string, contentType: string): Promise<InitResult> {
+  // No API-key calls here: the name comes from the download token, the size from the CDN.
+  const ticket = await getTicket(session, slug)
+  const meta = { name: ticket.name, size: await remoteSize(ticket), type: contentType }
   const { used, limit } = await listBackups()
   const existing = await env.BACKUPS.head(keyFor(slug))
   const usedWithout = used - (existing?.size ?? 0)
   if (usedWithout + meta.size > limit) {
     throw new BackupError(`Backing up ${meta.name} would go over your ${+(limit / 1024 ** 3).toFixed(limit < 1024 ** 3 ? 1 : 0)} GB backup limit. Delete some backups first.`, 413, 'LIMIT')
   }
-  const ticket = await getTicket(session, slug)
   const customMetadata = { slug, name: meta.name, folder, backedUpAt: new Date().toISOString() }
   const httpMetadata = { contentType: meta.type || 'application/octet-stream', contentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(meta.name)}` }
 

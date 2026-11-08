@@ -26,7 +26,6 @@ export function useActions() {
       qc.invalidateQueries({ queryKey: ['files'] }),
       qc.invalidateQueries({ queryKey: ['account'] }),
       qc.invalidateQueries({ queryKey: ['folder-info'] }),
-      qc.invalidateQueries({ queryKey: ['activity'] }),
     ])
   }, [qc])
 

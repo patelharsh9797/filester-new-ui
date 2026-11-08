@@ -44,7 +44,7 @@ async function handle({ request, params }: { request: Request; params: { _splat?
       case 'init': {
         const slug = str(body.slug, 32)
         if (!/^[A-Za-z0-9_-]+$/.test(slug)) return json({ success: false, message: 'Bad file id' }, 400)
-        return json({ success: true, ...(await initBackup(session, slug, str(body.folder, 500))) })
+        return json({ success: true, ...(await initBackup(session, slug, str(body.folder, 500), str(body.type, 100) || 'application/octet-stream')) })
       }
       case 'ticket': {
         const slug = str(body.slug, 32)
