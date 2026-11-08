@@ -5,6 +5,7 @@ import { setUnauthorizedHandler } from '../lib/api'
 import { DialogProvider } from '../state/dialogs'
 import { UploadProvider } from '../state/uploads'
 import { BackupProvider } from '../state/backups'
+import { TaskProvider } from '../state/tasks'
 import { Layout } from '../components/Layout'
 import { goToLogin } from '../state/session'
 
@@ -29,9 +30,11 @@ function AppShell() {
   return (
     <UploadProvider>
       <BackupProvider>
-        <DialogProvider>
-          <Layout />
-        </DialogProvider>
+        <TaskProvider>
+          <DialogProvider>
+            <Layout />
+          </DialogProvider>
+        </TaskProvider>
       </BackupProvider>
     </UploadProvider>
   )

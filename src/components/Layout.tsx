@@ -13,6 +13,7 @@ import { SearchPalette } from './SearchPalette'
 import { UploadDialog, UploadDock } from './Uploads'
 import { FolderIcon } from './icons'
 import { BackupDock } from './BackupDock'
+import { TaskDock } from './TaskDock'
 
 interface ShellCtx {
   openSearch: (scope?: 'all' | 'folders' | 'files') => void
@@ -192,6 +193,7 @@ export function Layout() {
         </div>
       )}
       <div className="fixed bottom-4 right-4 z-40 w-[min(400px,calc(100vw-32px))] flex flex-col gap-2 pointer-events-none [&>*]:pointer-events-auto">
+        <TaskDock />
         <BackupDock />
         <UploadDock />
       </div>

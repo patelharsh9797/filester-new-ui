@@ -6,6 +6,7 @@ import type { FileRow, FolderNode } from '../lib/types'
 import { useLibrary } from '../lib/library'
 import { useDialogs } from './dialogs'
 import { useToast } from './toast'
+import { useTasks } from './tasks'
 import { FolderPickerDialog } from '../components/FolderPicker'
 import { FolderFormDialog, type FolderFormValues } from '../components/FolderForm'
 import { formatBytes } from '../lib/format'
@@ -16,6 +17,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
 export function useActions() {
   const qc = useQueryClient()
   const toast = useToast()
+  const tasks = useTasks()
   const { confirm, prompt, open } = useDialogs()
   const lib = useLibrary()
   const navigate = useNavigate()
@@ -85,6 +87,7 @@ export function useActions() {
       if (!folders.length) return
       let flags: Map<string, api.FolderFlags>
       try {
+        toast('info', `Checking settings of ${plural(folders.length, 'folder')}…`)
         flags = await qc.fetchQuery({ queryKey: ['folder-flags'], queryFn: api.getFolderFlags, staleTime: 0 })
       } catch (e) {
         toast('error', `Couldn't read folder settings: ${(e as Error).message}`)
@@ -107,23 +110,30 @@ export function useActions() {
         confirmLabel: todo.length ? `${word} related in ${plural(todo.length, 'folder')}` : 'OK',
       })
       if (!ok || !todo.length) return
-      let done = 0
-      const failed: string[] = []
+      // Progress is shown in the task dock; edits run 4 at a time.
+      const task = tasks.start(`${on ? 'Hiding' : 'Showing'} related files`, todo.length)
+      let updated = 0
+      let failed = 0
       let next = 0
       const worker = async () => {
-        while (next < todo.length) {
+        while (next < todo.length && !task.signal.aborted) {
           const f = todo[next++]
+          task.working(f.name)
           try {
             await api.editFolder({ id: f.id, name: f.name, isPublic: f.public, password: '', hideRelated: on })
-            done++
+            updated++
+            task.step(f.name)
           } catch (e) {
-            failed.push(`${f.name}: ${(e as Error).message}`)
+            failed++
+            task.step(f.name, (e as Error).message)
           }
         }
       }
       await Promise.all(Array.from({ length: Math.min(4, todo.length) }, worker))
-      if (failed.length) toast('error', `Updated ${done}, ${failed.length} failed — ${failed.slice(0, 2).join('; ')}`)
-      else toast('success', `${on ? 'Hiding' : 'Showing'} related files in ${plural(done, 'folder')}`)
+      task.finish()
+      if (task.signal.aborted) toast('info', `Stopped — ${plural(updated, 'folder')} updated before cancelling`)
+      else if (failed) toast('error', `Updated ${updated}, ${failed} failed — see the progress panel for details`)
+      else toast('success', `${on ? 'Hiding' : 'Showing'} related files in ${plural(updated, 'folder')}`)
       await qc.invalidateQueries({ queryKey: ['folder-flags'] })
       await qc.invalidateQueries({ queryKey: ['folder-info'] })
       after?.()
