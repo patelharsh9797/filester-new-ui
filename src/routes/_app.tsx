@@ -1,11 +1,12 @@
 import { useEffect } from 'react'
-import { createFileRoute, redirect, useRouter } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { getSession } from '../server/auth.functions'
 import { setUnauthorizedHandler } from '../lib/api'
 import { DialogProvider } from '../state/dialogs'
 import { UploadProvider } from '../state/uploads'
 import { BackupProvider } from '../state/backups'
 import { Layout } from '../components/Layout'
+import { goToLogin } from '../state/session'
 
 /**
  * Signed-in area. Rendered client-side only: all data is per-user and loaded
@@ -22,14 +23,8 @@ export const Route = createFileRoute('/_app')({
 })
 
 function AppShell() {
-  const router = useRouter()
-  const { queryClient } = Route.useRouteContext()
-  useEffect(() => {
-    setUnauthorizedHandler(() => {
-      queryClient.clear()
-      router.navigate({ to: '/login' })
-    })
-  }, [router, queryClient])
+  // Session expired or revoked while using the app: same clean exit as signing out.
+  useEffect(() => setUnauthorizedHandler(goToLogin), [])
 
   return (
     <UploadProvider>
