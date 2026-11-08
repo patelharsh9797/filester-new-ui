@@ -13,6 +13,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppBackupsRouteImport } from './routes/_app/backups'
+import { Route as AppDuplicatesRouteImport } from './routes/_app/duplicates'
 import { Route as AppExpiringRouteImport } from './routes/_app/expiring'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
@@ -38,6 +39,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppBackupsRoute = AppBackupsRouteImport.update({
   id: '/backups',
   path: '/backups',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDuplicatesRoute = AppDuplicatesRouteImport.update({
+  id: '/duplicates',
+  path: '/duplicates',
   getParentRoute: () => AppRoute,
 } as any)
 const AppExpiringRoute = AppExpiringRouteImport.update({
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/backups': typeof AppBackupsRoute
+  '/duplicates': typeof AppDuplicatesRoute
   '/expiring': typeof AppExpiringRoute
   '/files': typeof AppFilesRoute
   '/settings': typeof AppSettingsRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/backups': typeof AppBackupsRoute
+  '/duplicates': typeof AppDuplicatesRoute
   '/expiring': typeof AppExpiringRoute
   '/files': typeof AppFilesRoute
   '/settings': typeof AppSettingsRoute
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/_app/backups': typeof AppBackupsRoute
+  '/_app/duplicates': typeof AppDuplicatesRoute
   '/_app/expiring': typeof AppExpiringRoute
   '/_app/files': typeof AppFilesRoute
   '/_app/settings': typeof AppSettingsRoute
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/backups'
+    | '/duplicates'
     | '/expiring'
     | '/files'
     | '/settings'
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/backups'
+    | '/duplicates'
     | '/expiring'
     | '/files'
     | '/settings'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/login'
     | '/_app/backups'
+    | '/_app/duplicates'
     | '/_app/expiring'
     | '/_app/files'
     | '/_app/settings'
@@ -189,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/backups'
       fullPath: '/backups'
       preLoaderRoute: typeof AppBackupsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/duplicates': {
+      id: '/_app/duplicates'
+      path: '/duplicates'
+      fullPath: '/duplicates'
+      preLoaderRoute: typeof AppDuplicatesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/expiring': {
@@ -245,6 +264,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppBackupsRoute: typeof AppBackupsRoute
+  AppDuplicatesRoute: typeof AppDuplicatesRoute
   AppExpiringRoute: typeof AppExpiringRoute
   AppFilesRoute: typeof AppFilesRoute
   AppSettingsRoute: typeof AppSettingsRoute
@@ -255,6 +275,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppBackupsRoute: AppBackupsRoute,
+  AppDuplicatesRoute: AppDuplicatesRoute,
   AppExpiringRoute: AppExpiringRoute,
   AppFilesRoute: AppFilesRoute,
   AppSettingsRoute: AppSettingsRoute,

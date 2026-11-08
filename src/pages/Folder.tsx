@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { ChevronRight, Copy, ExternalLink, FolderInput, FolderPlus, Globe, Home, Lock, Pencil, Search, Trash2, Upload, X } from 'lucide-react'
+import { ChevronRight, Copy, Copy as CopyIcon, ExternalLink, FolderInput, FolderPlus, Globe, Home, Lock, Pencil, Search, Trash2, Upload, X } from 'lucide-react'
 import { useLibrary } from '../lib/library'
+import { useDuplicates } from '../lib/duplicates'
 import { searchItems } from '../lib/search'
 import { folderUrl, formatBytes, formatDate } from '../lib/format'
 import type { FileRow, FolderNode } from '../lib/types'
@@ -18,6 +19,7 @@ export function FolderPage() {
   const { id } = useParams({ from: '/_app/folders/$id' })
   const search = useSearch({ from: '/_app/folders/$id' })
   const lib = useLibrary()
+  const dup = useDuplicates()
   const actions = useActions()
   const toast = useToast()
   const navigate = useNavigate({ from: '/folders/$id' })
@@ -109,6 +111,14 @@ export function FolderPage() {
           )}
         </div>
       </div>
+
+      {(dup.byFolder.get(id) ?? 0) > 0 && (
+        <Link to="/duplicates" search={{ in: id, match: 'name' }} className="flex items-center gap-3 rounded-xl border border-accent/40 bg-accent-soft px-4 py-2.5 text-sm">
+          <CopyIcon className="size-4 text-accent-ink shrink-0" />
+          <span className="flex-1"><b>{dup.byFolder.get(id)}</b> duplicate {dup.byFolder.get(id) === 1 ? 'copy' : 'copies'} in this folder (same file name uploaded more than once)</span>
+          <span className="font-medium whitespace-nowrap">Review →</span>
+        </Link>
+      )}
 
       {(subfolders.length > 0 || subQ) && (
         <section className="space-y-2.5">

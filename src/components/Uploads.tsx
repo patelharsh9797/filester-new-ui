@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronUp, Copy, FolderOpen, Upload, X } from 'lucide-react'
 import { useUploads } from '../state/uploads'
 import { useLibrary } from '../lib/library'
@@ -65,27 +65,76 @@ export function UploadDock() {
 const MAX = 10 * 1024 ** 3
 
 /** Pick files + destination folder, then queue them. */
+type DupMode = 'same' | 'name' | 'none'
+const DUP_MODES: Record<DupMode, string> = {
+  same: 'Skip files already in this folder (same name and size)',
+  name: 'Skip any file whose name is already in this folder',
+  none: 'Upload everything, even duplicates',
+}
+type Check = 'new' | 'same' | 'name' | 'repeat' | 'big'
+
+/** Pick files + destination folder, then queue them. Files already in the folder are skipped by default. */
 export function UploadDialog({ folder: initialFolder, initialFiles = [], onClose }: { folder: string | null; initialFiles?: File[]; onClose: () => void }) {
   const lib = useLibrary()
-  const { add } = useUploads()
+  const { add, items } = useUploads()
   const { pickFolder } = useActions()
   const [folder, setFolder] = useState(initialFolder)
   const [files, setFiles] = useState<File[]>(initialFiles)
+  const [mode, setMode] = useState<DupMode>('same')
   const [drag, setDrag] = useState(false)
   const input = useRef<HTMLInputElement>(null)
-  const tooBig = files.filter((f) => f.size > MAX)
-  const ok = files.filter((f) => f.size <= MAX)
+
+  // What's already in the destination: files on Filester + uploads from this session.
+  const existing = useMemo(() => {
+    const m = new Map<string, Set<number>>()
+    const put = (name: string, size: number) => {
+      const k = name.toLowerCase()
+      if (!m.has(k)) m.set(k, new Set())
+      m.get(k)!.add(size)
+    }
+    for (const f of folder ? lib.filesByFolder.get(folder) ?? [] : lib.rootFiles) put(f.name, f.size)
+    for (const u of items) if (u.folder === folder && u.status !== 'error' && u.status !== 'cancelled') put(u.file.name, u.file.size)
+    return m
+  }, [folder, lib.filesByFolder, lib.rootFiles, items])
+
+  const checks = useMemo(() => {
+    const seen = new Set<string>()
+    return files.map((f): Check => {
+      if (f.size > MAX) return 'big'
+      const key = `${f.name.toLowerCase()}\u0000${f.size}`
+      if (seen.has(key)) return 'repeat'
+      seen.add(key)
+      const sizes = existing.get(f.name.toLowerCase())
+      if (sizes?.has(f.size)) return 'same'
+      if (sizes) return 'name'
+      return 'new'
+    })
+  }, [files, existing])
+
+  const skip = (c: Check) => c === 'big' || c === 'repeat' || (mode !== 'none' && c === 'same') || (mode === 'name' && c === 'name')
+  const toUpload = files.filter((_, i) => !skip(checks[i]))
+  const count = (c: Check) => checks.filter((x) => x === c).length
+  const nSame = count('same'), nName = count('name'), nRepeat = count('repeat'), nBig = count('big')
+  const checking = lib.filesLoading
 
   const choose = async () => {
     const d = await pickFolder('Upload to…', { confirmLabel: 'Choose', current: undefined })
     if (d !== undefined) setFolder(d)
   }
 
+  const badge = (c: Check) => {
+    if (c === 'same') return <span className={`text-[11px] rounded px-1.5 ${skip(c) ? 'bg-raised text-muted' : 'bg-accent-soft text-accent-ink'}`}>{skip(c) ? 'already there · skip' : 'already there'}</span>
+    if (c === 'name') return <span className={`text-[11px] rounded px-1.5 ${skip(c) ? 'bg-raised text-muted' : 'bg-accent-soft text-accent-ink'}`} title="A file with this name but a different size is already in the folder">{skip(c) ? 'name exists · skip' : 'name exists, different size'}</span>
+    if (c === 'repeat') return <span className="text-[11px] rounded px-1.5 bg-raised text-muted">picked twice · skip</span>
+    if (c === 'big') return <span className="text-[11px] rounded px-1.5 bg-danger-soft text-danger">over 10 GB</span>
+    return null
+  }
+
   return (
     <Modal title="Upload files" wide onClose={onClose} footer={<>
       <button className="btn" onClick={onClose}>Cancel</button>
-      <button className="btn-primary" disabled={!ok.length} onClick={() => { add(ok, folder); onClose() }}>
-        <Upload className="size-4" /> Upload {ok.length || ''} {ok.length === 1 ? 'file' : 'files'}
+      <button className="btn-primary" disabled={!toUpload.length || checking} onClick={() => { add(toUpload, folder); onClose() }}>
+        <Upload className="size-4" /> {checking ? 'Checking folder…' : `Upload ${toUpload.length || ''} ${toUpload.length === 1 ? 'file' : 'files'}`}
       </button>
     </>}>
       <div className="flex items-center gap-2 mb-3 text-sm">
@@ -97,25 +146,42 @@ export function UploadDialog({ folder: initialFolder, initialFiles = [], onClose
       <div onDragOver={(e) => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}
         onDrop={(e) => { e.preventDefault(); setDrag(false); setFiles((f) => [...f, ...Array.from(e.dataTransfer.files)]) }}
         onClick={() => input.current?.click()}
-        className={`rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${drag ? 'border-accent bg-accent-soft' : 'border-line hover:bg-raised'}`}>
+        className={`rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors ${drag ? 'border-accent bg-accent-soft' : 'border-line hover:bg-raised'}`}>
         <Upload className="size-6 mx-auto text-faint mb-2" />
         <p className="text-sm">Drop files here or <span className="text-accent-ink font-medium">browse</span></p>
         <p className="text-xs text-faint mt-1">Up to 10 GB per file · large files are uploaded in resumable chunks</p>
         <input ref={input} type="file" multiple hidden onChange={(e) => { setFiles((f) => [...f, ...Array.from(e.target.files ?? [])]); e.target.value = '' }} />
       </div>
-      {files.length > 0 && (
-        <ul className="mt-3 max-h-48 overflow-y-auto divide-y divide-line text-sm">
-          {files.map((f, i) => (
-            <li key={i} className="flex items-center gap-2 py-1.5">
-              <FileKindIcon kind={kindOf(f.name, f.type)} />
-              <span className={`truncate flex-1 ${f.size > MAX ? 'text-danger line-through' : ''}`}>{f.name}</span>
-              <span className="text-xs text-faint tabular">{formatBytes(f.size)}</span>
-              <button className="btn-icon size-6" onClick={() => setFiles((l) => l.filter((_, j) => j !== i))} aria-label="Remove"><X className="size-3.5" /></button>
-            </li>
-          ))}
-        </ul>
+
+      {files.length > 0 && (nSame + nName + nRepeat > 0) && (
+        <div className="mt-3 rounded-lg border border-line p-3 space-y-2">
+          <p className="text-sm">
+            <b>{nSame}</b> {nSame === 1 ? 'file is' : 'files are'} already in this folder
+            {nName > 0 && <>, <b>{nName}</b> {nName === 1 ? 'has a name' : 'have names'} already used by a different file</>}
+            {nRepeat > 0 && <>, <b>{nRepeat}</b> picked twice</>}.
+          </p>
+          <select className="input h-8 text-xs" value={mode} onChange={(e) => setMode(e.target.value as DupMode)} aria-label="Duplicates">
+            {(Object.keys(DUP_MODES) as DupMode[]).map((m) => <option key={m} value={m}>{DUP_MODES[m]}</option>)}
+          </select>
+        </div>
       )}
-      {tooBig.length > 0 && <p className="text-xs text-danger mt-2">{tooBig.length} file(s) exceed the 10 GB limit and will be skipped.</p>}
+
+      {files.length > 0 && (
+        <>
+          <ul className="mt-3 max-h-56 overflow-y-auto divide-y divide-line text-sm">
+            {files.map((f, i) => (
+              <li key={i} className={`flex items-center gap-2 py-1.5 ${skip(checks[i]) ? 'opacity-60' : ''}`}>
+                <FileKindIcon kind={kindOf(f.name, f.type)} />
+                <span className={`truncate flex-1 ${skip(checks[i]) ? 'line-through' : ''}`}>{f.name}</span>
+                {badge(checks[i])}
+                <span className="text-xs text-faint tabular">{formatBytes(f.size)}</span>
+                <button className="btn-icon size-6" onClick={() => setFiles((l) => l.filter((_, j) => j !== i))} aria-label="Remove"><X className="size-3.5" /></button>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-faint mt-2">{toUpload.length} of {files.length} will be uploaded{nBig ? ` · ${nBig} over the 10 GB limit` : ''}.</p>
+        </>
+      )}
     </Modal>
   )
 }
