@@ -10,18 +10,18 @@ import { env } from 'cloudflare:workers'
  * Upstream origins. Override with the FILESTER_WEB_ORIGIN / FILESTER_API_ORIGIN
  * vars (e.g. to use a Filester mirror domain); read per request as Workers require.
  */
-function origins() {
+export function filesterOrigins() {
   const e = env as unknown as Record<string, string | undefined>
   return {
     WEB: (e.FILESTER_WEB_ORIGIN || 'https://filester.me').replace(/\/$/, ''),
     U1: (e.FILESTER_API_ORIGIN || 'https://u1.filester.me').replace(/\/$/, ''),
   }
 }
-const UA = 'Mozilla/5.0 (compatible; FilesterNavigator/1.0; personal file manager)'
+export const UA = 'Mozilla/5.0 (compatible; FilesterNavigator/1.0; personal file manager)'
 
 /** Prefix after /api/fs/ → upstream base + which credential to attach. */
 function routes(): Record<string, { base: string; auth: 'key' | 'cookie' }> {
-  const { WEB, U1 } = origins()
+  const { WEB, U1 } = filesterOrigins()
   return {
     v1: { base: `${U1}/api/v1/`, auth: 'key' },
     v2: { base: `${U1}/api/v2/`, auth: 'key' },
@@ -74,7 +74,7 @@ export type LoginResult =
   | { ok: false; requires2fa?: boolean; message: string; status: number }
 
 export async function filesterLogin(username: string, password: string, code?: string): Promise<LoginResult> {
-  const { WEB } = origins()
+  const { WEB } = filesterOrigins()
   const r = await fetch(`${WEB}/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'user-agent': UA },
@@ -103,7 +103,7 @@ export async function filesterLogin(username: string, password: string, code?: s
 }
 
 async function fetchApiKey(token: string): Promise<string> {
-  const { WEB } = origins()
+  const { WEB } = filesterOrigins()
   const r = await fetch(`${WEB}/account`, { headers: { cookie: `auth_token=${token}`, 'user-agent': UA } })
   const html = await r.text()
   const m = /id="apiKeyValue"[^>]*>\s*([^<\s]+)\s*</.exec(html)
@@ -112,7 +112,7 @@ async function fetchApiKey(token: string): Promise<string> {
 
 /** Quick check that an API key works. */
 export async function verifyApiKey(apiKey: string): Promise<boolean> {
-  const { U1 } = origins()
+  const { U1 } = filesterOrigins()
   const r = await fetch(`${U1}/api/v1/account`, { headers: { authorization: `Bearer ${apiKey}`, 'user-agent': UA } })
   return r.ok
 }

@@ -4,6 +4,7 @@ import { getSession } from '../server/auth.functions'
 import { setUnauthorizedHandler } from '../lib/api'
 import { DialogProvider } from '../state/dialogs'
 import { UploadProvider } from '../state/uploads'
+import { BackupProvider } from '../state/backups'
 import { Layout } from '../components/Layout'
 
 /**
@@ -32,9 +33,11 @@ function AppShell() {
 
   return (
     <UploadProvider>
-      <DialogProvider>
-        <Layout />
-      </DialogProvider>
+      <BackupProvider>
+        <DialogProvider>
+          <Layout />
+        </DialogProvider>
+      </BackupProvider>
     </UploadProvider>
   )
 }

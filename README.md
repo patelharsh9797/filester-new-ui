@@ -13,6 +13,7 @@ Personal-use tool. It runs on Cloudflare Workers and talks to Filester's own API
 - 🌲 **Sidebar folder tree.** Expands to the folder you're viewing.
 - ⬆️ **Uploads.** Drag and drop anywhere to upload into the current folder. Files go up in chunks with retries using Filester's v2 protocol (up to 10 GB each).
 - ⏳ **Expiring soon.** Filester deletes files after a stretch with no downloads. A dedicated page shows how many days each file has left, an Overview banner and a sidebar badge warn you about anything due within 7 days, and red or amber badges appear next to at-risk files in every list. You can count from the FAQ rule (35 days without downloads, the default) or the API-docs rule (45 days without views or downloads).
+- 💾 **Manual R2 backups.** From the Expiring soon page, back up one file or a selection to your Cloudflare R2 bucket. Large files are copied in 64 MB parts with live progress. A Backups page lists stored copies with download and delete buttons, a space meter and a size limit, and copies are deleted automatically after 7 days (configurable).
 - ✏️ **Editing.** Rename files and folders, move with a searchable folder picker, change public or private, delete.
 - 🔐 **Password safeguard.** Editing a password-protected folder can't drop its password by accident. Filester's own endpoint does this when the password field is blank.
 
@@ -63,6 +64,8 @@ src/routes/login.tsx           sign-in page
 src/routes/_app.tsx            signed-in layout (auth guard, client-rendered)
 src/routes/_app/…              /, /folders, /folders/$id, /files, /settings
 src/routes/api/fs/$.ts         server route: pass-through to Filester
+src/routes/api/backup/$.ts     server route: manual Filester → R2 backups
+src/server/backup.server.ts    backup logic (download tokens, ranged copy, R2 multipart)
 src/server/auth.functions.ts   server functions: login, logout, getSession
 src/server/session.server.ts   encrypted session cookie
 src/server/filester.server.ts  Filester login + proxy logic

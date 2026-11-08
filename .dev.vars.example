@@ -5,3 +5,7 @@ SESSION_SECRET="replace-with-32-plus-random-characters"
 # Optional: use a Filester mirror instead of the default origins.
 # FILESTER_WEB_ORIGIN="https://filester.me"
 # FILESTER_API_ORIGIN="https://u1.filester.me"
+
+# Optional overrides of the wrangler.jsonc vars for backups.
+# BACKUP_LIMIT_GB="10"
+# BACKUP_RETENTION_DAYS="7"

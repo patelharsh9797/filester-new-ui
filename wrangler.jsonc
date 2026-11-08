@@ -9,7 +9,16 @@
   // Cloudflare account; Cloudflare creates the DNS record and certificate.
   "routes": [{ "pattern": "fs.snippface.vip", "custom_domain": true }],
   // Also keep the free *.workers.dev URL as a fallback.
-  "workers_dev": true
+  "workers_dev": true,
+  // Manual backups of at-risk files (create the bucket first:
+  //   npx wrangler r2 bucket create filester-backups)
+  "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "filester-backups" }],
+  "vars": {
+    // Refuse new backups once the bucket would exceed this many GB.
+    "BACKUP_LIMIT_GB": "10",
+    // Backups older than this are deleted automatically (checked whenever the app lists backups).
+    "BACKUP_RETENTION_DAYS": "7"
+  }
   // Secret (set with `npx wrangler secret put SESSION_SECRET`, never committed):
   //   SESSION_SECRET – 32+ random characters used to encrypt the login cookie.
 }

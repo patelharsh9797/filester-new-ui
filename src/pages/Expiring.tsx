@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { AlertTriangle, Copy, ExternalLink, FolderInput, Info, Search, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Check, Copy, DatabaseBackup, Download, ExternalLink, FolderInput, Info, Loader2, Search, Trash2, X } from 'lucide-react'
 import { LEVELS, RULES, useExpiring, useExpiryRule, type ExpiringFile, type ExpiryRule } from '../lib/expiry'
 import { searchItems } from '../lib/search'
 import { formatBytes, formatDate, formatRelative } from '../lib/format'
@@ -12,6 +12,8 @@ import { FileInfoDialog } from '../components/FileInfo'
 import { copyText, useActions } from '../state/actions'
 import { useOpenDialog } from '../state/dialogs'
 import { useToast } from '../state/toast'
+import { useBackupList, useBackups, type BackupJob } from '../state/backups'
+import { backupDownloadUrl, type BackupInfo } from '../lib/backup'
 import { Skeleton } from './Overview'
 
 const WINDOWS = { '3': 3, '7': 7, '14': 14, '30': 30, all: Infinity } as const
@@ -26,6 +28,16 @@ export function ExpiringPage() {
   const toast = useToast()
   const openDialog = useOpenDialog()
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const { jobs, enqueue } = useBackups()
+  const backupList = useBackupList()
+  const backedUp = useMemo(() => new Map((backupList.data?.backups ?? []).map((b) => [b.slug, b])), [backupList.data])
+  const backup = (files: ExpiringFile[]) => {
+    const space = backupList.data ? backupList.data.limit - backupList.data.used : Infinity
+    const need = files.reduce((n, f) => n + f.size, 0)
+    if (need > space) toast('info', `Selected files need ${formatBytes(need)} but only ${formatBytes(Math.max(0, space))} of backup space is free — some will be refused.`)
+    enqueue(files)
+    toast('success', `Backing up ${files.length} file${files.length === 1 ? '' : 's'} — keep this tab open`)
+  }
 
   const win: Win = params.within && params.within in WINDOWS ? (params.within as Win) : '14'
   const q = params.q ?? ''
@@ -111,6 +123,7 @@ export function ExpiringPage() {
             <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-accent-soft border-b border-line text-sm">
               <button className="btn-icon" onClick={clear} aria-label="Clear selection"><X className="size-4" /></button>
               <span className="font-medium text-accent-ink mr-auto">{sel.length} selected · {formatBytes(sel.reduce((n, f) => n + f.size, 0))}</span>
+              <button className="btn h-8" onClick={() => { backup(sel); clear() }}><DatabaseBackup className="size-4" /> Back up to R2</button>
               <button className="btn h-8" onClick={() => copyText(sel.map((f) => f.url).join('\n'), toast, 'Links')}><Copy className="size-4" /> Copy links</button>
               <button className="btn h-8" onClick={() => actions.moveFiles(sel, clear)}><FolderInput className="size-4" /> Move</button>
               <button className="btn h-8 text-danger" onClick={() => actions.deleteFiles(sel, clear)}><Trash2 className="size-4" /> Delete</button>
@@ -131,11 +144,13 @@ export function ExpiringPage() {
               </thead>
               <tbody>
                 {rows.map((f) => <Row key={f.id} f={f} q={q} selected={selected.has(f.id)} onToggle={() => toggle(f.id)}
+                  job={jobs.get(f.slug)} stored={backedUp.get(f.slug)}
                   onInfo={() => openDialog((close) => <FileInfoDialog file={f} onClose={close} />)}
                   menu={[
                     { label: 'Details', icon: <Info className="size-4" />, onClick: () => openDialog((close) => <FileInfoDialog file={f} onClose={close} />) },
                     { label: 'Open on Filester', icon: <ExternalLink className="size-4" />, onClick: () => window.open(f.url, '_blank', 'noreferrer') },
                     { label: 'Copy link', icon: <Copy className="size-4" />, onClick: () => copyText(f.url, toast) },
+                    { label: backedUp.has(f.slug) ? 'Back up again' : 'Back up to R2', icon: <DatabaseBackup className="size-4" />, onClick: () => backup([f]) },
                     'sep',
                     { label: 'Move to…', icon: <FolderInput className="size-4" />, onClick: () => actions.moveFiles([f]) },
                     { label: 'Delete', icon: <Trash2 className="size-4" />, danger: true, onClick: () => actions.deleteFiles([f]) },
@@ -154,8 +169,19 @@ export function ExpiringPage() {
   )
 }
 
-function Row({ f, q, selected, onToggle, onInfo, menu }: {
+function BackupState({ job, stored }: { job?: BackupJob; stored?: BackupInfo }) {
+  if (job && (job.status === 'queued' || job.status === 'running')) {
+    const p = job.size ? Math.round((job.copied / job.size) * 100) : 0
+    return <span className="inline-flex items-center gap-1 text-[11px] text-muted"><Loader2 className="size-3 animate-spin" />{job.status === 'queued' ? 'Queued' : `Backing up ${p}%`}</span>
+  }
+  if (job?.status === 'error') return <span className="text-[11px] text-danger" title={job.error}>Backup failed</span>
+  if (stored) return <a href={backupDownloadUrl(stored.key)} className="inline-flex items-center gap-1 text-[11px] text-ok hover:underline" title="Download the R2 backup"><Check className="size-3" />Backed up<Download className="size-3" /></a>
+  return null
+}
+
+function Row({ f, q, selected, onToggle, onInfo, menu, job, stored }: {
   f: ExpiringFile; q: string; selected: boolean; onToggle: () => void; onInfo: () => void; menu: Parameters<typeof Menu>[0]['items']
+  job?: BackupJob; stored?: BackupInfo
 }) {
   const a = f.activity
   return (
@@ -177,6 +203,7 @@ function Row({ f, q, selected, onToggle, onInfo, menu }: {
         <div className="flex flex-col items-start gap-0.5">
           <ExpiryBadge daysLeft={f.daysLeft} level={f.level} />
           <span className="text-[11px] text-faint">{formatDate(f.expiresAt)}</span>
+          <BackupState job={job} stored={stored} />
         </div>
       </td>
       <td className="pr-2 text-right">

@@ -51,7 +51,24 @@ Then either:
 
 Changing this secret later signs everyone out (old cookies can't be decrypted), which is a handy "log out everywhere" switch.
 
-## 3. Custom domain
+## 3. R2 bucket for backups
+
+The Expiring soon page can copy files into R2. Create the bucket once (the name must match `wrangler.jsonc`):
+
+```bash
+npx wrangler r2 bucket create filester-backups
+```
+
+Or use the Dashboard: **R2 → Create bucket → `filester-backups`**. The Worker gets access through the `BACKUPS` binding automatically on the next deploy.
+
+Two plain-text vars in `wrangler.jsonc` control it (you can also override them in the Worker's **Settings → Variables and Secrets**):
+
+| Var | Default | Meaning |
+|---|---|---|
+| `BACKUP_LIMIT_GB` | `10` | New backups are refused once the bucket would go over this. 10 GB is R2's free tier. |
+| `BACKUP_RETENTION_DAYS` | `7` | Backups older than this are deleted automatically, whenever the app lists backups. |
+
+## 4. Custom domain
 
 `wrangler.jsonc` already contains:
 
@@ -65,7 +82,7 @@ Workers & Pages → **filester-navigator** → **Settings** → **Domains & Rout
 
 Then open **https://fs.snippface.vip** and sign in with your Filester username and password.
 
-## 4. If sign-in fails with "Filester blocked the request"
+## 5. If sign-in fails with "Filester blocked the request"
 
 filester.me sits behind DDoS-Guard, which may block traffic coming from Cloudflare's servers. That can only be checked after the first deploy. If it happens:
 
