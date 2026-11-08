@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, ChevronRight, Copy, ExternalLink, FolderInput, FolderPlus, Globe, List, ListTree, Lock, Pencil, Search, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronRight, Copy, ExternalLink, EyeOff, FolderInput, FolderPlus, Globe, KeyRound, List, ListTree, Lock, Pencil, Search, Trash2, X } from 'lucide-react'
 import { useLibrary } from '../lib/library'
+import { useQuery } from '@tanstack/react-query'
+import { getFolderFlags } from '../lib/api'
 import { normalize, score } from '../lib/search'
 import { folderUrl, formatBytes, formatDate, formatRelative } from '../lib/format'
 import type { FolderNode } from '../lib/types'
@@ -26,13 +28,16 @@ export function FoldersPage() {
   const vis = (params.vis as Vis) || 'all'
   const show = (params.show as Show) || 'all'
   const view = params.view === 'tree' ? 'tree' : 'list'
+  const hr = params.hr === 'on' || params.hr === 'off' ? params.hr : null
   const sortParam = (params.sort as SortKey | undefined) ?? null
   const dir = params.dir === 'asc' ? 1 : params.dir === 'desc' ? -1 : null
   const sort: SortKey = sortParam ?? (q ? 'relevance' : 'path')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLInputElement>(null)
+  const flagsQ = useQuery({ queryKey: ['folder-flags'], queryFn: getFolderFlags, staleTime: 5 * 60_000 })
+  const flags = flagsQ.data
 
-  type Key = 'q' | 'vis' | 'show' | 'view' | 'sort' | 'dir'
+  type Key = 'q' | 'vis' | 'show' | 'view' | 'sort' | 'dir' | 'hr'
   const set = (k: Key, v: string | null) => navigate({
     search: (prev) => ({ ...prev, [k]: v || undefined, ...(k === 'q' ? { sort: undefined, dir: undefined } : {}) }),
     replace: true,
@@ -58,13 +63,14 @@ export function FoldersPage() {
       if (show === 'top' && f.parent) return false
       if (show === 'empty' && (f.totalFiles > 0 || f.children.length > 0)) return false
       if (show === 'nonempty' && f.totalFiles === 0) return false
+      if (hr && flags && (flags.get(f.id)?.hideRelated ?? false) !== (hr === 'on')) return false
       if (!nq) return true
       const s = score(nq, f.name, f.pathText)
       if (s > 0) scores.set(f.id, s)
       return s > 0
     })
     return { matches, scores }
-  }, [lib.folders, q, vis, show])
+  }, [lib.folders, q, vis, show, hr, flags])
 
   const sorted = useMemo(() => {
     const d = dir ?? (sort === 'name' || sort === 'path' ? 1 : -1)
@@ -142,6 +148,10 @@ export function FoldersPage() {
         {chip('show', 'top', 'Top-level only', show)}
         {chip('show', 'nonempty', 'Has files', show)}
         {chip('show', 'empty', 'Empty', show)}
+        <span className="w-px h-5 bg-line mx-1" />
+        {chip('hr', 'all', 'Related: any', hr ?? 'all')}
+        {chip('hr', 'on', <><EyeOff className="size-3" /> Hides related</>, hr ?? 'all')}
+        {chip('hr', 'off', 'Shows related', hr ?? 'all')}
         <span className="ml-auto text-xs text-faint">{lib.foldersLoading ? '' : `${matches.length} of ${lib.folders.length}`}</span>
       </div>
 
@@ -157,6 +167,10 @@ export function FoldersPage() {
               <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-accent-soft border-b border-line text-sm">
                 <button className="btn-icon" onClick={clear} aria-label="Clear selection"><X className="size-4" /></button>
                 <span className="font-medium text-accent-ink mr-auto">{selected.size} selected</span>
+                <Menu label="Hide related" trigger={<><EyeOff className="size-4" /> Hide related</>} items={[
+                  { label: 'Hide related files', icon: <EyeOff className="size-4" />, onClick: () => actions.setHideRelated(selectedFolders, true, clear) },
+                  { label: 'Show related files', icon: <Globe className="size-4" />, onClick: () => actions.setHideRelated(selectedFolders, false, clear) },
+                ]} />
                 <button className="btn h-8" onClick={() => actions.moveFolders(selectedFolders).then(clear)}><FolderInput className="size-4" /> Move</button>
                 <button className="btn h-8 text-danger" onClick={() => actions.deleteFolders(selectedFolders, clear)}><Trash2 className="size-4" /> Delete</button>
               </div>
@@ -169,7 +183,7 @@ export function FoldersPage() {
                     {header(q ? 'relevance' : 'path', q ? 'Best match' : 'Folder')}
                     {header('files', 'Files', 'text-right w-20')}
                     {header('size', 'Size', 'text-right w-24')}
-                    <th className="th w-20 hidden sm:table-cell">Access</th>
+                    <th className="th w-28 hidden sm:table-cell">Access</th>
                     {header('activity', 'Activity', 'w-28 hidden md:table-cell')}
                     {header('created', 'Created', 'w-28 hidden lg:table-cell')}
                     <th className="w-12" />
@@ -195,7 +209,13 @@ export function FoldersPage() {
                       </td>
                       <td className="td text-right tabular text-muted" title={`${f.file_count} directly inside`}>{f.totalFiles}</td>
                       <td className="td text-right tabular text-muted whitespace-nowrap">{lib.filesLoading ? '…' : formatBytes(f.totalSize)}</td>
-                      <td className="td hidden sm:table-cell">{f.public ? <span className="inline-flex items-center gap-1 text-xs text-muted"><Globe className="size-3" />Public</span> : <span className="inline-flex items-center gap-1 text-xs text-muted"><Lock className="size-3" />Private</span>}</td>
+                      <td className="td hidden sm:table-cell">
+                        <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                          {f.public ? <><Globe className="size-3" />Public</> : <><Lock className="size-3" />Private</>}
+                          {flags?.get(f.id)?.hasPassword && <span title="Password-protected"><KeyRound className="size-3 text-accent-ink" /></span>}
+                          {flags?.get(f.id)?.hideRelated && <span title="Hides related files"><EyeOff className="size-3" /></span>}
+                        </span>
+                      </td>
                       <td className="td text-muted whitespace-nowrap hidden md:table-cell">{formatRelative(f.lastActivity)}</td>
                       <td className="td text-muted whitespace-nowrap hidden lg:table-cell">{formatDate(f.created_at)}</td>
                       <td className="pr-2 text-right"><Menu items={menuFor(f)} /></td>

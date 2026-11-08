@@ -127,6 +127,7 @@ Seen in the site's JavaScript *(from JS only, not exercised)*:
 ## Policies worth knowing
 - Files are deleted after inactivity. The **FAQ says 35 days without downloads**; the **API docs say 45 days without views or downloads**. `last_viewed` / `last_downloaded` per file are available in `/api/files/export.csv`, and both are set to the upload time on upload.
 - Private folders can't have a password.
+- The account setting **Default Hide Related Files** only applies to folders created after it is turned on; existing folders keep their own `hide_related`. There is no bulk endpoint — change existing folders with `POST /api/folder/edit` one by one (re-sending the password for protected folders, or it is removed).
 
 ---
 
@@ -162,7 +163,8 @@ Only uploads count against the rate limit (they return `X-RateLimit-Remaining`);
 | 15 | `GET /api/file/info?id=<slug>` | Views, MD5, last viewed/downloaded | Opening file details |
 | 16 | `GET /api/folder/info?id=<id>` | Password/“hide related” status | Opening the edit-folder dialog |
 | 17 | `POST /api/file/update` | Rename file | Rename |
-| 18 | `POST /api/folder/edit` | Rename folder, public/private, password | Edit folder |
+| 18 | `POST /api/folder/edit` | Rename folder, public/private, password, hide related | Edit folder; bulk “Hide related” (one call per folder) |
+| 18b | `GET /api/manager/data?folders_page=1&all_folders=1&with_hierarchy=1&folder_sort=az` | `HideRelated` + `HasPassword` for every folder, in one request | Folders page (cached 5 min) and before a bulk “Hide related” |
 
 ### Filester CDN — no credentials (token in the URL)
 

@@ -14,6 +14,7 @@ Personal-use tool. It runs on Cloudflare Workers and talks to Filester's own API
 - ⬆️ **Uploads.** Drag and drop anywhere to upload into the current folder. Files go up in chunks with retries using Filester's v2 protocol (up to 10 GB each).
 - ⏳ **Expiring soon.** Filester deletes files after a stretch with no downloads. A dedicated page shows how many days each file has left, an Overview banner and a sidebar badge warn you about anything due within 7 days, and red or amber badges appear next to at-risk files in every list. You can count from the FAQ rule (35 days without downloads, the default) or the API-docs rule (45 days without views or downloads).
 - 💾 **Manual R2 backups.** From the Expiring soon page, back up one file or a selection to your Cloudflare R2 bucket. Large files are copied in 64 MB parts with live progress. A Backups page lists stored copies with download and delete buttons, a space meter and a size limit, and copies are deleted automatically after 7 days (configurable).
+- 🙈 **Bulk “Hide related”.** Turn Filester's “More from this album” section off (or back on) for many folders at once from the Folders page, with a filter showing which folders still display it. Password-protected folders are skipped so their passwords aren't removed.
 - ✏️ **Editing.** Rename files and folders, move with a searchable folder picker, change public or private, delete.
 - 🔐 **Password safeguard.** Editing a password-protected folder can't drop its password by accident. Filester's own endpoint does this when the password field is blank.
 

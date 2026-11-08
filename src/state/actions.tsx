@@ -26,6 +26,7 @@ export function useActions() {
       qc.invalidateQueries({ queryKey: ['files'] }),
       qc.invalidateQueries({ queryKey: ['account'] }),
       qc.invalidateQueries({ queryKey: ['folder-info'] }),
+      qc.invalidateQueries({ queryKey: ['folder-flags'] }),
     ])
   }, [qc])
 
@@ -72,6 +73,60 @@ export function useActions() {
       const v = await folderForm('edit', folder)
       if (!v) return
       await run(() => api.editFolder({ id: folder.id, ...v }), 'Folder updated')
+    },
+
+    /**
+     * Turn "Hide related" on/off for many folders. Filester has no bulk endpoint,
+     * so each folder is edited individually (web endpoint, no API-key cost).
+     * Password-protected folders are skipped: Filester's edit would remove the
+     * password unless it is re-entered.
+     */
+    async setHideRelated(folders: FolderNode[], on: boolean, after?: () => void) {
+      if (!folders.length) return
+      let flags: Map<string, api.FolderFlags>
+      try {
+        flags = await qc.fetchQuery({ queryKey: ['folder-flags'], queryFn: api.getFolderFlags, staleTime: 0 })
+      } catch (e) {
+        toast('error', `Couldn't read folder settings: ${(e as Error).message}`)
+        return
+      }
+      const protectedFolders = folders.filter((f) => flags.get(f.id)?.hasPassword)
+      const already = folders.filter((f) => !flags.get(f.id)?.hasPassword && flags.get(f.id)?.hideRelated === on)
+      const todo = folders.filter((f) => !protectedFolders.includes(f) && !already.includes(f))
+      const word = on ? 'Hide' : 'Show'
+      const ok = await confirm({
+        title: `${word} related files in ${plural(folders.length, 'folder')}?`,
+        message: <div className="space-y-2">
+          <p>{on ? 'File pages in these folders will no longer show the “More from this album” section.' : 'File pages in these folders will show the “More from this album” section again.'}</p>
+          <ul className="list-disc pl-5 text-xs">
+            <li><b>{todo.length}</b> will be updated</li>
+            {already.length > 0 && <li>{already.length} already {on ? 'hide' : 'show'} related files (skipped)</li>}
+            {protectedFolders.length > 0 && <li>{protectedFolders.length} password-protected (skipped — change these one by one in Edit, re-entering the password)</li>}
+          </ul>
+        </div>,
+        confirmLabel: todo.length ? `${word} related in ${plural(todo.length, 'folder')}` : 'OK',
+      })
+      if (!ok || !todo.length) return
+      let done = 0
+      const failed: string[] = []
+      let next = 0
+      const worker = async () => {
+        while (next < todo.length) {
+          const f = todo[next++]
+          try {
+            await api.editFolder({ id: f.id, name: f.name, isPublic: f.public, password: '', hideRelated: on })
+            done++
+          } catch (e) {
+            failed.push(`${f.name}: ${(e as Error).message}`)
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(4, todo.length) }, worker))
+      if (failed.length) toast('error', `Updated ${done}, ${failed.length} failed — ${failed.slice(0, 2).join('; ')}`)
+      else toast('success', `${on ? 'Hiding' : 'Showing'} related files in ${plural(done, 'folder')}`)
+      await qc.invalidateQueries({ queryKey: ['folder-flags'] })
+      await qc.invalidateQueries({ queryKey: ['folder-info'] })
+      after?.()
     },
 
     async moveFolders(folders: FolderNode[]) {

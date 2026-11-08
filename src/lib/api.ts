@@ -175,6 +175,29 @@ export async function createFolder(name: string, parent: string | null, isPublic
  * Edit a folder (web endpoint). NOTE: Filester clears an existing password when
  * `password` is empty, so callers must pass the password again to keep it.
  */
+export interface FolderFlags {
+  hideRelated: boolean
+  hasPassword: boolean
+}
+
+/**
+ * "Hide related" and password status for every folder, in one web request
+ * (the data endpoint behind Filester's own file manager).
+ */
+export async function getFolderFlags(): Promise<Map<string, FolderFlags>> {
+  type Raw = { Identifier: string; HideRelated?: boolean; HasPassword?: boolean; Subfolders?: Raw[] | null }
+  const d = await request<{ allFoldersHierarchical?: Raw[] | null }>('web', 'manager/data?folders_page=1&all_folders=1&with_hierarchy=1&folder_sort=az')
+  const map = new Map<string, FolderFlags>()
+  const walk = (list: Raw[] | null | undefined) => {
+    for (const f of list ?? []) {
+      map.set(f.Identifier, { hideRelated: !!f.HideRelated, hasPassword: !!f.HasPassword })
+      walk(f.Subfolders)
+    }
+  }
+  walk(d.allFoldersHierarchical)
+  return map
+}
+
 export function editFolder(p: { id: string; name: string; isPublic: boolean; password: string; hideRelated: boolean }) {
   return request('web', 'folder/edit', post({
     identifier: p.id, name: p.name, public: p.isPublic ? 1 : 0, password: p.password, hide_related: p.hideRelated ? 1 : 0,
