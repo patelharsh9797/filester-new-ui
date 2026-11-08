@@ -2,7 +2,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { readSession } from '../../../server/session.server'
 import {
-  BackupError, abortBackup, completeBackup, copyPart, deleteBackups, getTicket, initBackup, listBackups, readBackup,
+  BackupError, abortBackup, completeBackup, copyPart, deleteBackups, discardPending, getTicket, initBackup, listBackups, readBackup,
   type DownloadTicket,
 } from '../../../server/backup.server'
 
@@ -67,6 +67,11 @@ async function handle({ request, params }: { request: Request; params: { _splat?
         const key = str(body.key, 300)
         if (isKey(key)) await abortBackup({ key, uploadId: str(body.uploadId, 1000) })
         return json({ success: true })
+      }
+      case 'discard': {
+        // Abort unfinished (interrupted) uploads: { keys: [...] } or { all: true }
+        const keys = body.all === true ? 'all' as const : Array.isArray(body.keys) ? (body.keys as unknown[]).map((k) => str(k, 300)).filter(isKey) : []
+        return json({ success: true, discarded: await discardPending(keys) })
       }
       case 'delete': {
         const keys = Array.isArray(body.keys) ? (body.keys as unknown[]).map((k) => str(k, 300)).filter(isKey) : []

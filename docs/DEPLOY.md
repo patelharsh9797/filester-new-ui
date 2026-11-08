@@ -68,6 +68,12 @@ Two plain-text vars in `wrangler.jsonc` control it (you can also override them i
 | `BACKUP_LIMIT_GB` | `10` | New backups are refused once the bucket would go over this. 10 GB is R2's free tier. |
 | `BACKUP_RETENTION_DAYS` | `7` | Backups older than this are deleted automatically, whenever the app lists backups. |
 
+**Unfinished uploads.** Big files are copied with R2 multipart uploads. If a backup stops part-way (tab closed, phone call),
+its pieces stay in R2: they count in the bucket size but aren't listed as objects. The app records each unfinished upload,
+lets you resume or discard it (Backups page / backup panel) and discards anything older than 24 hours on its own.
+As a safety net, check **R2 → filester-backups → Settings → Object lifecycle rules**: keep the rule that aborts
+incomplete multipart uploads and set it to **1 day** (Cloudflare's default is 7).
+
 ## 4. Custom domain
 
 `wrangler.jsonc` already contains:

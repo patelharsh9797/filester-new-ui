@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Check, Download, Loader2, RotateCw, Trash2, X } from 'lucide-react'
-import { backupDownloadUrl, deleteBackups } from '../lib/backup'
+import { backupDownloadUrl, deleteBackups, discardPending } from '../lib/backup'
 import { formatBytes, formatDate, formatRelative, kindOf } from '../lib/format'
 import { useBackupList, useBackups } from '../state/backups'
 import { useDialogs } from '../state/dialogs'
@@ -56,7 +56,7 @@ export function BackupsPage() {
           <span className="tabular">{data ? `${formatBytes(data.used)} of ${formatBytes(data.limit, 0)}` : '…'}</span>
         </div>
         <div className="h-2 rounded-full bg-raised overflow-hidden"><div className={`h-full ${pct > 90 ? 'bg-danger' : 'bg-accent'}`} style={{ width: `${Math.max(pct, data?.used ? 1 : 0)}%` }} /></div>
-        <p className="text-xs text-faint mt-2">New backups are refused once they would go over this limit (set by <code>BACKUP_LIMIT_GB</code>).</p>
+        <p className="text-xs text-faint mt-2">Includes unfinished uploads. New backups are refused once they would go over this limit (set by <code>BACKUP_LIMIT_GB</code>).</p>
       </div>
 
       {list.error && <p className="text-sm text-danger bg-danger-soft rounded-lg px-3 py-2">Couldn't load backups: {(list.error as Error).message}</p>}
@@ -87,12 +87,39 @@ export function BackupsPage() {
                     {j.status === 'done' && <span className="text-ok">Backed up</span>}
                     {j.status === 'cancelled' && <span className="text-faint">Cancelled</span>}
                     {j.status === 'error' && <span className="text-danger">{j.error}</span>}
+                    {j.status === 'interrupted' && <span className="text-accent-ink">Interrupted — resume it from the backup panel</span>}
                   </div>
                 </li>
               )
             })}
           </ul>
           {activeJobs.some((j) => j.status === 'running' || j.status === 'queued') && <p className="text-xs text-faint">Keep this tab open until copying finishes.</p>}
+        </section>
+      )}
+
+      {(data?.pending.length ?? 0) > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold mr-auto">Unfinished uploads <span className="text-faint font-normal text-sm">{data!.pending.length}</span></h2>
+            <button className="btn h-8 text-danger" onClick={async () => {
+              const ok = await confirm({ title: 'Discard unfinished uploads?', message: 'Frees the space these partial copies use in R2. Files on Filester are not touched.', confirmLabel: 'Discard', danger: true })
+              if (!ok) return
+              try { const r = await discardPending('all'); toast('success', `Discarded ${r.discarded} unfinished upload${r.discarded === 1 ? '' : 's'}`) } catch (e) { toast('error', (e as Error).message) }
+              qc.invalidateQueries({ queryKey: ['backups'] })
+            }}><Trash2 className="size-4" /> Discard all</button>
+          </div>
+          <p className="text-xs text-faint">Backups that stopped part-way (tab closed, phone call, lost connection). Their pieces still take space in R2 — Cloudflare shows them in the bucket size but not as objects. They can be resumed from the backup panel on the device that started them, and are discarded automatically after 24 hours.</p>
+          <ul className="card divide-y divide-line">
+            {data!.pending.map((u) => (
+              <li key={u.key} className="flex items-center gap-2.5 px-3 py-2 text-sm">
+                <FileKindIcon kind={kindOf(u.name, '')} />
+                <span className="truncate flex-1" title={u.name}>{u.name}</span>
+                <span className="text-xs text-faint tabular">{formatBytes(u.size)}</span>
+                <span className="text-xs text-faint whitespace-nowrap">started {formatRelative(u.startedAt)}</span>
+                <button className="btn-icon" aria-label="Discard" title="Discard" onClick={async () => { await discardPending([u.key]).catch(() => {}); qc.invalidateQueries({ queryKey: ['backups'] }) }}><Trash2 className="size-4" /></button>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

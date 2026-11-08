@@ -12,6 +12,14 @@ import { filesterOrigins, UA } from './filester.server'
 
 export const PART_SIZE = 64 * 1024 * 1024 // R2: all parts except the last must be the same size
 const PREFIX = 'backups/'
+/**
+ * Markers for multipart uploads that haven't completed yet. R2 keeps the parts of
+ * an unfinished upload (they use storage but aren't listed as objects), and the
+ * Workers binding can't list them, so we record each one ourselves.
+ */
+const PENDING = 'pending/'
+/** Unfinished uploads older than this are aborted automatically. */
+const PENDING_TTL_MS = 24 * 3600_000
 
 export interface DownloadTicket {
   server: string
@@ -121,7 +129,55 @@ function fixedLength(res: Response, len: number) {
 
 // ---------------------------------------------------------------- R2
 
-export async function listBackups(): Promise<{ backups: BackupInfo[]; used: number; limit: number; retentionDays: number }> {
+export interface PendingInfo {
+  key: string
+  slug: string
+  name: string
+  size: number
+  startedAt: string
+}
+
+async function readPending(): Promise<{ live: (PendingInfo & { marker: string; uploadId: string })[]; stale: { marker: string; key: string; uploadId: string }[] }> {
+  const live: (PendingInfo & { marker: string; uploadId: string })[] = []
+  const stale: { marker: string; key: string; uploadId: string }[] = []
+  let cursor: string | undefined
+  do {
+    const page = await env.BACKUPS.list({ prefix: PENDING, cursor, include: ['customMetadata'] })
+    for (const o of page.objects) {
+      const m = o.customMetadata ?? {}
+      const startedAt = m.startedAt || o.uploaded.toISOString()
+      if (Date.now() - Date.parse(startedAt) > PENDING_TTL_MS) stale.push({ marker: o.key, key: m.key, uploadId: m.uploadId })
+      else live.push({ marker: o.key, key: m.key, uploadId: m.uploadId, slug: m.slug, name: m.name, size: Number(m.size) || 0, startedAt })
+    }
+    cursor = page.truncated ? page.cursor : undefined
+  } while (cursor)
+  return { live, stale }
+}
+
+async function dropPending(items: { marker: string; key?: string; uploadId?: string }[]) {
+  for (const it of items) {
+    if (it.key && it.uploadId) await env.BACKUPS.resumeMultipartUpload(it.key, it.uploadId).abort().catch(() => {})
+  }
+  const markers = items.map((i) => i.marker)
+  for (let i = 0; i < markers.length; i += 1000) await env.BACKUPS.delete(markers.slice(i, i + 1000))
+}
+
+/** Unfinished uploads (still reserved in the bucket). Stale ones are aborted on the way. */
+export async function listPending(): Promise<PendingInfo[]> {
+  const { live, stale } = await readPending()
+  if (stale.length) await dropPending(stale)
+  return live.map(({ key, slug, name, size, startedAt }) => ({ key, slug, name, size, startedAt }))
+}
+
+/** Abort unfinished uploads by backup key (or all of them). */
+export async function discardPending(keys: string[] | 'all') {
+  const { live, stale } = await readPending()
+  const pick = keys === 'all' ? live : live.filter((p) => keys.includes(p.key))
+  await dropPending([...pick, ...stale])
+  return pick.length
+}
+
+export async function listBackups(): Promise<{ backups: BackupInfo[]; pending: PendingInfo[]; used: number; limit: number; retentionDays: number }> {
   const { limitBytes, retentionDays } = config()
   const backups: BackupInfo[] = []
   const expired: string[] = []
@@ -140,7 +196,10 @@ export async function listBackups(): Promise<{ backups: BackupInfo[]; used: numb
   // Retention: drop expired backups whenever we list.
   for (let i = 0; i < expired.length; i += 1000) await env.BACKUPS.delete(expired.slice(i, i + 1000))
   backups.sort((a, b) => b.backedUpAt.localeCompare(a.backedUpAt))
-  return { backups, used: backups.reduce((n, b) => n + b.size, 0), limit: limitBytes, retentionDays }
+  const pending = await listPending()
+  // Unfinished uploads occupy space too, so they count against the limit.
+  const used = backups.reduce((n, b) => n + b.size, 0) + pending.reduce((n, p) => n + p.size, 0)
+  return { backups, pending, used, limit: limitBytes, retentionDays }
 }
 
 export type InitResult =
@@ -151,6 +210,8 @@ export async function initBackup(session: Session, slug: string, folder: string,
   // No API-key calls here: the name comes from the download token, the size from the CDN.
   const ticket = await getTicket(session, slug)
   const meta = { name: ticket.name, size: await remoteSize(ticket), type: contentType }
+  // Restarting a file whose earlier backup was interrupted: release those parts first.
+  await discardPending([keyFor(slug)])
   const { used, limit } = await listBackups()
   const existing = await env.BACKUPS.head(keyFor(slug))
   const usedWithout = used - (existing?.size ?? 0)
@@ -171,6 +232,9 @@ export async function initBackup(session: Session, slug: string, folder: string,
   }
 
   const upload = await env.BACKUPS.createMultipartUpload(keyFor(slug), { customMetadata, httpMetadata })
+  await env.BACKUPS.put(`${PENDING}${slug}`, '', {
+    customMetadata: { key: upload.key, uploadId: upload.uploadId, slug, name: meta.name, size: String(meta.size), startedAt: new Date().toISOString() },
+  })
   return { done: false, key: upload.key, uploadId: upload.uploadId, size: meta.size, partSize: PART_SIZE, parts: Math.ceil(meta.size / PART_SIZE), ticket }
 }
 
@@ -180,18 +244,32 @@ export async function copyPart(p: { key: string; uploadId: string; size: number;
   if (p.part < 1 || start >= p.size) throw new BackupError('Bad part number')
   const upload = env.BACKUPS.resumeMultipartUpload(p.key, p.uploadId)
   const res = await fetchRange(p.ticket, start, end)
-  const uploaded = await upload.uploadPart(p.part, fixedLength(res, end - start + 1))
-  return { partNumber: uploaded.partNumber, etag: uploaded.etag }
+  try {
+    const uploaded = await upload.uploadPart(p.part, fixedLength(res, end - start + 1))
+    return { partNumber: uploaded.partNumber, etag: uploaded.etag }
+  } catch (e) {
+    if (/does not exist|NoSuchUpload|10024/i.test(String((e as Error).message))) {
+      throw new BackupError('This unfinished backup was cleaned up; it will start again from the beginning', 410, 'GONE')
+    }
+    throw e
+  }
 }
 
 export async function completeBackup(p: { key: string; uploadId: string; parts: { partNumber: number; etag: string }[] }) {
   const upload = env.BACKUPS.resumeMultipartUpload(p.key, p.uploadId)
-  await upload.complete(p.parts)
+  try {
+    await upload.complete(p.parts)
+  } catch (e) {
+    if (/does not exist|NoSuchUpload|10024/i.test(String((e as Error).message))) throw new BackupError('This unfinished backup was cleaned up', 410, 'GONE')
+    throw e
+  }
+  await env.BACKUPS.delete(`${PENDING}${p.key.slice(PREFIX.length)}`)
   return (await listBackups()).backups.find((b) => b.key === p.key) ?? null
 }
 
 export async function abortBackup(p: { key: string; uploadId: string }) {
   await env.BACKUPS.resumeMultipartUpload(p.key, p.uploadId).abort().catch(() => {})
+  await env.BACKUPS.delete(`${PENDING}${p.key.slice(PREFIX.length)}`)
 }
 
 export async function deleteBackups(keys: string[]) {
