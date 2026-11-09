@@ -127,6 +127,7 @@ Seen in the site's JavaScript *(from JS only, not exercised)*:
 ## Policies worth knowing
 - Files are deleted after inactivity. The **FAQ says 35 days without downloads**; the **API docs say 45 days without views or downloads**. `last_viewed` / `last_downloaded` per file are available in `/api/files/export.csv`, and both are set to the upload time on upload.
 - Private folders can't have a password.
+- **Deleting a folder does not delete its subfolders.** They (and their files) survive with a missing parent: the REST API lists them at the top level, and Filester's own file-manager data (`/api/manager/data`) then returns **no folders at all** for the account until those orphans are deleted or moved.
 - The account setting **Default Hide Related Files** only applies to folders created after it is turned on; existing folders keep their own `hide_related`. There is no bulk endpoint — change existing folders with `POST /api/folder/edit` one by one (re-sending the password for protected folders, or it is removed).
 
 ---
@@ -146,7 +147,7 @@ Every call from the browser goes to our own Worker first; the Worker calls Files
 | 5 | `POST /api/v1/folders/move` | Move folders | Move |
 | 6 | `POST /api/v1/files/move` | Move files (≤200 per call) | Move |
 | 7 | `POST /file/delete` | Delete files | Delete |
-| 8 | `POST /folder/delete` | Delete folders (and their files) | Delete |
+| 8 | `POST /folder/delete` | Delete folders and the files directly in them. **Does not delete subfolders** — the app deletes the whole tree itself, deepest first | Delete |
 | 9 | `POST /api/v2/upload/init` · `PUT /api/v2/upload/chunk` · `POST /api/v2/upload/finish` · `POST /api/v2/upload/abort` | Chunked, resumable uploads | Upload |
 | 10 | `POST /api/v1/upload` | Single-request upload | Fallback if v2 upload is unavailable |
 

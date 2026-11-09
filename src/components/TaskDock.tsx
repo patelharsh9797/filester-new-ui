@@ -37,7 +37,7 @@ function TaskCard({ t, onCancel, onDismiss }: { t: Task; onCancel: () => void; o
         </div>
         <div className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-faint tabular">
           <span>{pct}%</span>
-          <span className="text-ok">{ok} updated</span>
+          <span className="text-ok">{ok} {t.verb}</span>
           {t.failed > 0 && (
             <button className="text-danger hover:underline inline-flex items-center gap-0.5" onClick={() => setShowErrors((s) => !s)}>
               {t.failed} failed {showErrors ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}

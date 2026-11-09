@@ -57,7 +57,7 @@ export function DuplicatesPage() {
     })
     if (!ok) return
     setBusy(true)
-    const task = tasks.start('Deleting duplicate copies', toDelete.length)
+    const task = tasks.start('Deleting duplicate copies', toDelete.length, 'deleted')
     let deleted = 0
     for (let i = 0; i < toDelete.length && !task.signal.aborted; i += 50) {
       const batch = toDelete.slice(i, i + 50)

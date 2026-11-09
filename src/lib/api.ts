@@ -211,7 +211,7 @@ export function moveFolders(ids: string[], parent: string | null) {
 }
 
 export function deleteFolders(ids: string[]) {
-  return request<{ files_deleted: number }>('u1', 'folder/delete', post({ identifiers: ids }))
+  return request<{ files_deleted: number; results?: { identifier: string; success: boolean; error?: string }[] }>('u1', 'folder/delete', post({ identifiers: ids }))
 }
 
 // ---------------------------------------------------------------- files
@@ -222,11 +222,11 @@ export function renameFile(slug: string, name: string, folderId: string | null) 
 }
 
 export function moveFiles(ids: string[], folder: string | null) {
-  return request<{ message: string; data: { moved: number; failed: number } }>(
+  return request<{ message: string; data: { moved: number; failed: number; results?: { file: string; success: boolean; error?: string }[] } }>(
     'v1', 'files/move', post({ files: ids, folder: folder ?? 'root' }),
   )
 }
 
 export function deleteFiles(ids: string[]) {
-  return request<{ successful_deletes: number; failed_deletes: number }>('u1', 'file/delete', post({ identifiers: ids }))
+  return request<{ successful_deletes: number; failed_deletes: number; results?: { file_id: string; success: boolean; error?: string }[] }>('u1', 'file/delete', post({ identifiers: ids }))
 }

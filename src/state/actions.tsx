@@ -9,7 +9,7 @@ import { useToast } from './toast'
 import { useTasks } from './tasks'
 import { FolderPickerDialog } from '../components/FolderPicker'
 import { FolderFormDialog, type FolderFormValues } from '../components/FolderForm'
-import { formatBytes } from '../lib/format'
+import { formatBytes, slugOf } from '../lib/format'
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
 
@@ -61,6 +61,64 @@ export function useActions() {
     return out
   }, [lib.byId])
 
+  /** Drop folders whose ancestor is also selected (they're deleted/moved along with it). */
+  const topLevelOnly = useCallback((folders: FolderNode[]) => {
+    const ids = new Set(folders.map((f) => f.id))
+    return folders.filter((f) => !f.pathIds.slice(0, -1).some((a) => ids.has(a)))
+  }, [])
+
+  /**
+   * Run a bulk operation in small batches, reporting every item to the progress
+   * panel. `op` returns the ids that failed (with a reason); everything else in the
+   * batch counts as done. Single items run without the panel.
+   */
+  const runBatched = useCallback(async <T,>(o: {
+    title: string
+    verb: string
+    items: T[]
+    batchSize: number
+    id: (t: T) => string
+    label: (t: T) => string
+    op: (batch: T[]) => Promise<Map<string, string>>
+    /** Called after each successful batch (e.g. to update lists right away) */
+    onBatchDone?: (ok: T[]) => void
+    success: (n: number) => string
+  }) => {
+    const task = o.items.length > 1 ? tasks.start(o.title, o.items.length, o.verb) : null
+    let ok = 0
+    const errors: string[] = []
+    for (let i = 0; i < o.items.length; i += o.batchSize) {
+      if (task?.signal.aborted) break
+      const batch = o.items.slice(i, i + o.batchSize)
+      task?.working(o.label(batch[0]) + (batch.length > 1 ? ` +${batch.length - 1}` : ''))
+      let failed: Map<string, string>
+      try {
+        failed = await o.op(batch)
+      } catch (e) {
+        failed = new Map(batch.map((t) => [o.id(t), (e as Error).message]))
+      }
+      const good = batch.filter((t) => !failed.has(o.id(t)))
+      ok += good.length
+      for (const t of batch) {
+        const err = failed.get(o.id(t))
+        if (err) errors.push(`${o.label(t)}: ${err}`)
+        task?.step(o.label(t), err)
+      }
+      if (good.length) o.onBatchDone?.(good)
+    }
+    task?.finish()
+    if (task?.signal.aborted) toast('info', `Stopped — ${o.success(ok).toLowerCase()} before cancelling`)
+    else if (errors.length) toast('error', `${o.success(ok)}, ${errors.length} failed${task ? ' — see the progress panel' : `: ${errors[0]}`}`)
+    else toast('success', o.success(ok))
+    await refresh()
+    return ok
+  }, [tasks, toast, refresh])
+
+  /** Remove files from the cached list immediately, so rows disappear as batches finish. */
+  const dropFromCache = useCallback((slugs: Set<string>) => {
+    qc.setQueryData(['files'], (old: api.FileListing | undefined) => old && { ...old, files: old.files.filter((f) => !slugs.has(slugOf(f.url))) })
+  }, [qc])
+
   return {
     refresh,
     pickFolder,
@@ -93,6 +151,15 @@ export function useActions() {
         toast('error', `Couldn't read folder settings: ${(e as Error).message}`)
         return
       }
+      // Only touch folders whose settings Filester actually reported. Its file-manager data
+      // can come back empty (e.g. when a folder's parent was deleted), and treating an
+      // unknown folder as "no password" would wipe a real password.
+      const unknown = folders.filter((f) => !flags.has(f.id))
+      if (unknown.length === folders.length) {
+        toast('error', "Filester didn't return these folders' settings, so nothing was changed. Try again later, or use Edit on each folder.")
+        return
+      }
+      folders = folders.filter((f) => flags.has(f.id))
       const protectedFolders = folders.filter((f) => flags.get(f.id)?.hasPassword)
       const already = folders.filter((f) => !flags.get(f.id)?.hasPassword && flags.get(f.id)?.hideRelated === on)
       const todo = folders.filter((f) => !protectedFolders.includes(f) && !already.includes(f))
@@ -105,6 +172,7 @@ export function useActions() {
             <li><b>{todo.length}</b> will be updated</li>
             {already.length > 0 && <li>{already.length} already {on ? 'hide' : 'show'} related files (skipped)</li>}
             {protectedFolders.length > 0 && <li>{protectedFolders.length} password-protected (skipped — change these one by one in Edit, re-entering the password)</li>}
+            {unknown.length > 0 && <li>{unknown.length} skipped because Filester didn't report their current settings</li>}
           </ul>
         </div>,
         confirmLabel: todo.length ? `${word} related in ${plural(todo.length, 'folder')}` : 'OK',
@@ -141,34 +209,49 @@ export function useActions() {
 
     async moveFolders(folders: FolderNode[]) {
       if (!folders.length) return
-      const ids = folders.map((f) => f.id)
-      const dest = await pickFolder(folders.length === 1 ? `Move “${folders[0].name}”` : `Move ${plural(folders.length, 'folder')}`, {
-        exclude: subtree(ids), current: folders.length === 1 ? folders[0].parent : undefined,
+      const top = topLevelOnly(folders)
+      const ids = top.map((f) => f.id)
+      const dest = await pickFolder(top.length === 1 ? `Move “${top[0].name}”` : `Move ${plural(top.length, 'folder')}`, {
+        exclude: subtree(ids), current: top.length === 1 ? top[0].parent : undefined,
       })
       if (dest === undefined) return
-      try {
-        const r = await api.moveFolders(ids, dest)
-        const failed = r.data.results.filter((x) => !x.success)
-        if (failed.length) toast('error', `${r.message}: ${failed.map((f) => f.error).join(', ')}`)
-        else toast('success', `Moved ${plural(r.data.moved, 'folder')}`)
-      } catch (e) {
-        toast('error', (e as Error).message)
-      }
-      await refresh()
+      const destName = dest ? lib.byId.get(dest)?.name : 'top level'
+      await runBatched({
+        title: `Moving folders to ${destName}`, verb: 'moved', items: top, batchSize: 10, id: (f) => f.id, label: (f) => f.name,
+        op: async (batch) => {
+          const r = await api.moveFolders(batch.map((f) => f.id), dest)
+          return new Map(r.data.results.filter((x) => !x.success).map((x) => [x.folder, x.error || 'failed']))
+        },
+        success: (n) => `Moved ${plural(n, 'folder')} to ${destName}`,
+      })
     },
 
     async deleteFolders(folders: FolderNode[], after?: () => void) {
       if (!folders.length) return
-      const files = folders.reduce((n, f) => n + f.totalFiles, 0)
-      const size = folders.reduce((n, f) => n + f.totalSize, 0)
-      const sub = folders.reduce((n, f) => n + f.totalFolders, 0)
+      // Filester's folder delete removes the folder and the files directly in it, but
+      // NOT its subfolders: they'd survive (with their files) and pop up at the top
+      // level. So delete the whole tree explicitly, deepest folders first.
+      const top = topLevelOnly(folders)
+      const all = [...subtree(top.map((f) => f.id))].map((id) => lib.byId.get(id)!).filter(Boolean)
+      all.sort((a, b) => b.depth - a.depth)
+      const files = top.reduce((n, f) => n + f.totalFiles, 0)
+      const size = top.reduce((n, f) => n + f.totalSize, 0)
+      const sub = all.length - top.length
       const ok = await confirm({
-        title: folders.length === 1 ? `Delete “${folders[0].name}”?` : `Delete ${plural(folders.length, 'folder')}?`,
+        title: top.length === 1 ? `Delete “${top[0].name}”?` : `Delete ${plural(top.length, 'folder')}?`,
         message: <>This permanently deletes {sub > 0 && <><b>{plural(sub, 'subfolder')}</b> and </>}<b>{plural(files, 'file')}</b> ({formatBytes(size)}) inside. This cannot be undone.</>,
         confirmLabel: 'Delete', danger: true,
       })
       if (!ok) return
-      await run(() => api.deleteFolders(folders.map((f) => f.id)), `Deleted ${plural(folders.length, 'folder')}`)
+      // Folders can hold many files, so a few per request keeps each one quick.
+      await runBatched({
+        title: 'Deleting folders', verb: 'deleted', items: all, batchSize: 3, id: (f) => f.id, label: (f) => f.name,
+        op: async (batch) => {
+          const r = await api.deleteFolders(batch.map((f) => f.id))
+          return new Map((r.results ?? []).filter((x) => !x.success).map((x) => [x.identifier, x.error || 'failed']))
+        },
+        success: (n) => `Deleted ${plural(n, 'folder')}`,
+      })
       after?.()
     },
 
@@ -186,10 +269,14 @@ export function useActions() {
       })
       if (dest === undefined) return
       const destName = dest ? lib.byId.get(dest)?.name : 'top level'
-      // API accepts max 200 per request
-      await run(async () => {
-        for (let i = 0; i < files.length; i += 200) await api.moveFiles(files.slice(i, i + 200).map((f) => f.slug), dest)
-      }, `Moved ${plural(files.length, 'file')} to ${destName}`)
+      await runBatched({
+        title: `Moving files to ${destName}`, verb: 'moved', items: files, batchSize: 50, id: (f) => f.slug, label: (f) => f.name,
+        op: async (batch) => {
+          const r = await api.moveFiles(batch.map((f) => f.slug), dest)
+          return new Map((r.data.results ?? []).filter((x) => !x.success).map((x) => [x.file, x.error || 'failed']))
+        },
+        success: (n) => `Moved ${plural(n, 'file')} to ${destName}`,
+      })
       after?.()
     },
 
@@ -201,9 +288,15 @@ export function useActions() {
         confirmLabel: 'Delete', danger: true,
       })
       if (!ok) return
-      await run(async () => {
-        for (let i = 0; i < files.length; i += 100) await api.deleteFiles(files.slice(i, i + 100).map((f) => f.slug))
-      }, `Deleted ${plural(files.length, 'file')}`)
+      await runBatched({
+        title: 'Deleting files', verb: 'deleted', items: files, batchSize: 20, id: (f) => f.slug, label: (f) => f.name,
+        op: async (batch) => {
+          const r = await api.deleteFiles(batch.map((f) => f.slug))
+          return new Map((r.results ?? []).filter((x) => !x.success).map((x) => [x.file_id, x.error || 'failed']))
+        },
+        onBatchDone: (good) => dropFromCache(new Set(good.map((f) => f.slug))),
+        success: (n) => `Deleted ${plural(n, 'file')}`,
+      })
       after?.()
     },
 

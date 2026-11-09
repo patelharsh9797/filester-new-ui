@@ -4,6 +4,8 @@ import { createContext, useCallback, useContext, useRef, useState, type ReactNod
 export interface Task {
   id: number
   title: string
+  /** Past-tense verb for finished items, e.g. "deleted" */
+  verb: string
   total: number
   done: number
   failed: number
@@ -26,7 +28,7 @@ export interface TaskHandle {
 
 interface Ctx {
   tasks: Task[]
-  start: (title: string, total: number) => TaskHandle
+  start: (title: string, total: number, verb?: string) => TaskHandle
   cancel: (id: number) => void
   dismiss: (id: number) => void
 }
@@ -40,11 +42,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   const patch = useCallback((id: number, fn: (t: Task) => Task) => setTasks((list) => list.map((t) => (t.id === id ? fn(t) : t))), [])
 
-  const start = useCallback((title: string, total: number): TaskHandle => {
+  const start = useCallback((title: string, total: number, verb = 'updated'): TaskHandle => {
     const id = ++seq
     const ctl = new AbortController()
     controllers.current.set(id, ctl)
-    setTasks((list) => [...list.filter((t) => t.status === 'running'), { id, title, total, done: 0, failed: 0, errors: [], status: 'running', startedAt: Date.now() }])
+    setTasks((list) => [...list.filter((t) => t.status === 'running'), { id, title, verb, total, done: 0, failed: 0, errors: [], status: 'running', startedAt: Date.now() }])
     return {
       signal: ctl.signal,
       step: (label, error) => patch(id, (t) => ({
