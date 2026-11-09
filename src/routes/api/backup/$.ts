@@ -2,13 +2,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { readSession } from '../../../server/session.server'
 import {
-  BackupError, abortBackup, completeBackup, copyPart, deleteBackups, discardPending, getTicket, initBackup, listBackups, readBackup,
+  BackupError, abortBackup, completeBackup, copyPart, deleteBackups, discardPending, getTicket, initBackup, listBackups, ownerOf, ownsKey, readBackup,
   type DownloadTicket,
 } from '../../../server/backup.server'
 
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: { 'cache-control': 'private, no-store' } })
 const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.slice(0, max) : '')
-const isKey = (k: string) => k.startsWith('backups/') && !k.includes('..')
 
 function ticketFrom(v: unknown): DownloadTicket {
   const t = (v ?? {}) as Record<string, unknown>
@@ -22,14 +21,17 @@ async function handle({ request, params }: { request: Request; params: { _splat?
   }
   const session = await readSession()
   if (!session) return json({ success: false, message: 'Not signed in' }, 401)
+  // Everything below is scoped to this user's own backups.
+  const owner = ownerOf(session)
+  const isKey = (k: string) => ownsKey(owner, k)
 
   const action = params._splat ?? ''
   try {
-    if (request.method === 'GET' && action === 'list') return json({ success: true, ...(await listBackups()) })
+    if (request.method === 'GET' && action === 'list') return json({ success: true, ...(await listBackups(owner)) })
 
     if (request.method === 'GET' && action === 'download') {
       const key = new URL(request.url).searchParams.get('key') ?? ''
-      const obj = isKey(key) ? await readBackup(key) : null
+      const obj = isKey(key) ? await readBackup(owner, key) : null
       if (!obj) return json({ success: false, message: 'Backup not found' }, 404)
       const headers = new Headers({ 'cache-control': 'private, no-store' })
       obj.writeHttpMetadata(headers)
@@ -61,7 +63,7 @@ async function handle({ request, params }: { request: Request; params: { _splat?
         const key = str(body.key, 300)
         if (!isKey(key) || !Array.isArray(body.parts)) return json({ success: false, message: 'Bad request' }, 400)
         const parts = (body.parts as { partNumber: number; etag: string }[]).map((p) => ({ partNumber: Number(p.partNumber), etag: str(p.etag, 200) }))
-        return json({ success: true, backup: await completeBackup({ key, uploadId: str(body.uploadId, 1000), parts }) })
+        return json({ success: true, backup: await completeBackup(owner, { key, uploadId: str(body.uploadId, 1000), parts }) })
       }
       case 'abort': {
         const key = str(body.key, 300)
@@ -71,11 +73,11 @@ async function handle({ request, params }: { request: Request; params: { _splat?
       case 'discard': {
         // Abort unfinished (interrupted) uploads: { keys: [...] } or { all: true }
         const keys = body.all === true ? 'all' as const : Array.isArray(body.keys) ? (body.keys as unknown[]).map((k) => str(k, 300)).filter(isKey) : []
-        return json({ success: true, discarded: await discardPending(keys) })
+        return json({ success: true, discarded: await discardPending(owner, keys) })
       }
       case 'delete': {
         const keys = Array.isArray(body.keys) ? (body.keys as unknown[]).map((k) => str(k, 300)).filter(isKey) : []
-        return json({ success: true, deleted: await deleteBackups(keys) })
+        return json({ success: true, deleted: await deleteBackups(owner, keys) })
       }
       default:
         return json({ success: false, message: 'Unknown action' }, 404)

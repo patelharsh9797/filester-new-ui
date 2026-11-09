@@ -49,7 +49,15 @@ function config() {
   }
 }
 
-const keyFor = (slug: string) => `${PREFIX}${slug}`
+/** Each user's backups live under their own prefix: backups/<owner>/<slug>. */
+export const ownerOf = (session: Session) => session.username.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')
+const userPrefix = (owner: string) => `${PREFIX}${owner}/`
+const pendingPrefix = (owner: string) => `${PENDING}${owner}/`
+const keyFor = (owner: string, slug: string) => `${userPrefix(owner)}${slug}`
+/** pending/<owner>/<slug> marker for a backups/<owner>/<slug> key */
+const markerFor = (key: string) => `${PENDING}${key.slice(PREFIX.length)}`
+/** True if `key` is one of this owner's backup keys. */
+export const ownsKey = (owner: string, key: string) => key.startsWith(userPrefix(owner)) && !key.includes('..')
 
 class BackupError extends Error {
   status: number
@@ -137,12 +145,12 @@ export interface PendingInfo {
   startedAt: string
 }
 
-async function readPending(): Promise<{ live: (PendingInfo & { marker: string; uploadId: string })[]; stale: { marker: string; key: string; uploadId: string }[] }> {
+async function readPending(owner: string): Promise<{ live: (PendingInfo & { marker: string; uploadId: string })[]; stale: { marker: string; key: string; uploadId: string }[] }> {
   const live: (PendingInfo & { marker: string; uploadId: string })[] = []
   const stale: { marker: string; key: string; uploadId: string }[] = []
   let cursor: string | undefined
   do {
-    const page = await env.BACKUPS.list({ prefix: PENDING, cursor, include: ['customMetadata'] })
+    const page = await env.BACKUPS.list({ prefix: pendingPrefix(owner), cursor, include: ['customMetadata'] })
     for (const o of page.objects) {
       const m = o.customMetadata ?? {}
       const startedAt = m.startedAt || o.uploaded.toISOString()
@@ -163,42 +171,78 @@ async function dropPending(items: { marker: string; key?: string; uploadId?: str
 }
 
 /** Unfinished uploads (still reserved in the bucket). Stale ones are aborted on the way. */
-export async function listPending(): Promise<PendingInfo[]> {
-  const { live, stale } = await readPending()
+export async function listPending(owner: string): Promise<PendingInfo[]> {
+  const { live, stale } = await readPending(owner)
   if (stale.length) await dropPending(stale)
   return live.map(({ key, slug, name, size, startedAt }) => ({ key, slug, name, size, startedAt }))
 }
 
 /** Abort unfinished uploads by backup key (or all of them). */
-export async function discardPending(keys: string[] | 'all') {
-  const { live, stale } = await readPending()
+export async function discardPending(owner: string, keys: string[] | 'all') {
+  const { live, stale } = await readPending(owner)
   const pick = keys === 'all' ? live : live.filter((p) => keys.includes(p.key))
   await dropPending([...pick, ...stale])
   return pick.length
 }
 
-export async function listBackups(): Promise<{ backups: BackupInfo[]; pending: PendingInfo[]; used: number; limit: number; retentionDays: number }> {
+/**
+ * Bytes stored in the whole bucket (all users, finished + unfinished): what the limit
+ * protects. Also expires legacy items saved before backups were split per user
+ * (backups/<slug>, pending/<slug>), which no user can see any more.
+ */
+async function bucketUsage(): Promise<number> {
+  const { retentionDays } = config()
+  let total = 0
+  const legacyBackups: string[] = []
+  const legacyPending: { marker: string; key?: string; uploadId?: string }[] = []
+  for (const prefix of [PREFIX, PENDING]) {
+    let cursor: string | undefined
+    do {
+      const page = await env.BACKUPS.list({ prefix, cursor, include: ['customMetadata'] })
+      for (const o of page.objects) {
+        const legacy = !o.key.slice(prefix.length).includes('/')
+        const m = o.customMetadata ?? {}
+        if (prefix === PENDING) {
+          const started = Date.parse(m.startedAt || o.uploaded.toISOString())
+          if (legacy && Date.now() - started > PENDING_TTL_MS) { legacyPending.push({ marker: o.key, key: m.key, uploadId: m.uploadId }); continue }
+          total += Number(m.size) || 0
+        } else {
+          const at = Date.parse(m.backedUpAt || o.uploaded.toISOString())
+          if (legacy && Date.now() - at > retentionDays * 86_400_000) { legacyBackups.push(o.key); continue }
+          total += o.size
+        }
+      }
+      cursor = page.truncated ? page.cursor : undefined
+    } while (cursor)
+  }
+  if (legacyPending.length) await dropPending(legacyPending)
+  for (let i = 0; i < legacyBackups.length; i += 1000) await env.BACKUPS.delete(legacyBackups.slice(i, i + 1000))
+  return total
+}
+
+export async function listBackups(owner: string): Promise<{ backups: BackupInfo[]; pending: PendingInfo[]; used: number; limit: number; retentionDays: number }> {
   const { limitBytes, retentionDays } = config()
   const backups: BackupInfo[] = []
   const expired: string[] = []
   let cursor: string | undefined
   do {
-    const page = await env.BACKUPS.list({ prefix: PREFIX, cursor, include: ['customMetadata'] })
+    const page = await env.BACKUPS.list({ prefix: userPrefix(owner), cursor, include: ['customMetadata'] })
     for (const o of page.objects) {
       const m = o.customMetadata ?? {}
       const backedUpAt = m.backedUpAt || o.uploaded.toISOString()
       const expiresAt = new Date(Date.parse(backedUpAt) + retentionDays * 86_400_000).toISOString()
       if (Date.parse(expiresAt) <= Date.now()) { expired.push(o.key); continue }
-      backups.push({ key: o.key, slug: m.slug || o.key.slice(PREFIX.length), name: m.name || o.key, folder: m.folder || '', size: o.size, backedUpAt, expiresAt })
+      backups.push({ key: o.key, slug: m.slug || o.key.slice(userPrefix(owner).length), name: m.name || o.key, folder: m.folder || '', size: o.size, backedUpAt, expiresAt })
     }
     cursor = page.truncated ? page.cursor : undefined
   } while (cursor)
   // Retention: drop expired backups whenever we list.
   for (let i = 0; i < expired.length; i += 1000) await env.BACKUPS.delete(expired.slice(i, i + 1000))
   backups.sort((a, b) => b.backedUpAt.localeCompare(a.backedUpAt))
-  const pending = await listPending()
-  // Unfinished uploads occupy space too, so they count against the limit.
-  const used = backups.reduce((n, b) => n + b.size, 0) + pending.reduce((n, p) => n + p.size, 0)
+  const pending = await listPending(owner)
+  // The limit protects the bucket (your storage bill), so usage is bucket-wide and
+  // includes unfinished uploads.
+  const used = await bucketUsage()
   return { backups, pending, used, limit: limitBytes, retentionDays }
 }
 
@@ -211,9 +255,10 @@ export async function initBackup(session: Session, slug: string, folder: string,
   const ticket = await getTicket(session, slug)
   const meta = { name: ticket.name, size: await remoteSize(ticket), type: contentType }
   // Restarting a file whose earlier backup was interrupted: release those parts first.
-  await discardPending([keyFor(slug)])
-  const { used, limit } = await listBackups()
-  const existing = await env.BACKUPS.head(keyFor(slug))
+  const owner = ownerOf(session)
+  await discardPending(owner, [keyFor(owner, slug)])
+  const { used, limit } = await listBackups(owner)
+  const existing = await env.BACKUPS.head(keyFor(owner, slug))
   const usedWithout = used - (existing?.size ?? 0)
   if (usedWithout + meta.size > limit) {
     throw new BackupError(`Backing up ${meta.name} would go over your ${+(limit / 1024 ** 3).toFixed(limit < 1024 ** 3 ? 1 : 0)} GB backup limit. Delete some backups first.`, 413, 'LIMIT')
@@ -223,16 +268,16 @@ export async function initBackup(session: Session, slug: string, folder: string,
 
   if (meta.size <= PART_SIZE) {
     const res = await fetchRange(ticket, 0, Math.max(0, meta.size - 1))
-    await env.BACKUPS.put(keyFor(slug), meta.size ? fixedLength(res, meta.size) : '', { customMetadata, httpMetadata })
+    await env.BACKUPS.put(keyFor(owner, slug), meta.size ? fixedLength(res, meta.size) : '', { customMetadata, httpMetadata })
     const { retentionDays } = config()
     return {
       done: true,
-      backup: { key: keyFor(slug), slug, name: meta.name, folder, size: meta.size, backedUpAt: customMetadata.backedUpAt, expiresAt: new Date(Date.now() + retentionDays * 86_400_000).toISOString() },
+      backup: { key: keyFor(owner, slug), slug, name: meta.name, folder, size: meta.size, backedUpAt: customMetadata.backedUpAt, expiresAt: new Date(Date.now() + retentionDays * 86_400_000).toISOString() },
     }
   }
 
-  const upload = await env.BACKUPS.createMultipartUpload(keyFor(slug), { customMetadata, httpMetadata })
-  await env.BACKUPS.put(`${PENDING}${slug}`, '', {
+  const upload = await env.BACKUPS.createMultipartUpload(keyFor(owner, slug), { customMetadata, httpMetadata })
+  await env.BACKUPS.put(markerFor(upload.key), '', {
     customMetadata: { key: upload.key, uploadId: upload.uploadId, slug, name: meta.name, size: String(meta.size), startedAt: new Date().toISOString() },
   })
   return { done: false, key: upload.key, uploadId: upload.uploadId, size: meta.size, partSize: PART_SIZE, parts: Math.ceil(meta.size / PART_SIZE), ticket }
@@ -255,7 +300,7 @@ export async function copyPart(p: { key: string; uploadId: string; size: number;
   }
 }
 
-export async function completeBackup(p: { key: string; uploadId: string; parts: { partNumber: number; etag: string }[] }) {
+export async function completeBackup(owner: string, p: { key: string; uploadId: string; parts: { partNumber: number; etag: string }[] }) {
   const upload = env.BACKUPS.resumeMultipartUpload(p.key, p.uploadId)
   try {
     await upload.complete(p.parts)
@@ -263,22 +308,22 @@ export async function completeBackup(p: { key: string; uploadId: string; parts: 
     if (/does not exist|NoSuchUpload|10024/i.test(String((e as Error).message))) throw new BackupError('This unfinished backup was cleaned up', 410, 'GONE')
     throw e
   }
-  await env.BACKUPS.delete(`${PENDING}${p.key.slice(PREFIX.length)}`)
-  return (await listBackups()).backups.find((b) => b.key === p.key) ?? null
+  await env.BACKUPS.delete(markerFor(p.key))
+  return (await listBackups(owner)).backups.find((b) => b.key === p.key) ?? null
 }
 
 export async function abortBackup(p: { key: string; uploadId: string }) {
   await env.BACKUPS.resumeMultipartUpload(p.key, p.uploadId).abort().catch(() => {})
-  await env.BACKUPS.delete(`${PENDING}${p.key.slice(PREFIX.length)}`)
+  await env.BACKUPS.delete(markerFor(p.key))
 }
 
-export async function deleteBackups(keys: string[]) {
-  const safe = keys.filter((k) => k.startsWith(PREFIX))
+export async function deleteBackups(owner: string, keys: string[]) {
+  const safe = keys.filter((k) => ownsKey(owner, k))
   for (let i = 0; i < safe.length; i += 1000) await env.BACKUPS.delete(safe.slice(i, i + 1000))
   return safe.length
 }
 
-export async function readBackup(key: string) {
-  if (!key.startsWith(PREFIX)) return null
+export async function readBackup(owner: string, key: string) {
+  if (!ownsKey(owner, key)) return null
   return env.BACKUPS.get(key)
 }

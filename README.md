@@ -53,6 +53,7 @@ browser ──pages, /_serverFn (login/logout/session)──▶ Cloudflare Worke
 ```
 
 - Filester only allows CORS from `https://filester.me`, so the browser can't call it directly. The Worker forwards requests and attaches your credentials.
+- **Private by default:** only Filester usernames in the `ALLOWED_USERS` secret can sign in; backups are stored per user.
 - **Sign-in:** a server function logs in to filester.me and reads your API key from the Account page. It stores the session JWT and API key in an **AES-GCM-encrypted, HttpOnly, Secure, SameSite=Lax cookie**. Page scripts never see them, and nothing is stored server-side.
 - `/api/fs/*` rejects requests without a valid session and cross-site POSTs.
 - The signed-in pages render client-side (`ssr: false`). On load the browser fetches **all folders** (one call) and **all files** (100 per call). It builds the tree, paths, recursive sizes and search index in memory, so search is instant. Filester allows 1,000 requests an hour.

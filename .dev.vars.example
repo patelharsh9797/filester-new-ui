@@ -1,6 +1,8 @@
 # Copy to .dev.vars for local development (`npm run dev`). Never commit .dev.vars.
 # In production set the secret with: npx wrangler secret put SESSION_SECRET
 SESSION_SECRET="replace-with-32-plus-random-characters"
+# Filester usernames allowed to sign in (comma-separated). Empty = nobody.
+ALLOWED_USERS="your-filester-username"
 
 # Optional: use a Filester mirror instead of the default origins.
 # FILESTER_WEB_ORIGIN="https://filester.me"

@@ -67,9 +67,25 @@ export function jwtExpiry(token: string): number {
   return Math.floor(Date.now() / 1000) + DEFAULT_TTL
 }
 
+/**
+ * Filester usernames allowed to use this deployment, from the ALLOWED_USERS secret
+ * (comma- or space-separated, case-insensitive). Unset or empty = nobody: the app
+ * is personal, so it fails closed rather than open.
+ */
+export function allowedUsers(): Set<string> {
+  const raw = (env as unknown as Record<string, string | undefined>).ALLOWED_USERS ?? ''
+  return new Set(raw.split(/[\s,]+/).map((u) => u.trim().toLowerCase()).filter(Boolean))
+}
+
+export function isAllowedUser(username: string) {
+  return allowedUsers().has(username.trim().toLowerCase())
+}
+
+/** The signed-in user — only if they're still on the allowlist (removing someone signs them out). */
 export async function readSession(): Promise<Session | null> {
   const raw = getCookie(COOKIE)
-  return raw ? unseal(raw) : null
+  const s = raw ? await unseal(raw) : null
+  return s && isAllowedUser(s.username) ? s : null
 }
 
 export async function writeSession(s: Session) {

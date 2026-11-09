@@ -51,6 +51,22 @@ Then either:
 
 Changing this secret later signs everyone out (old cookies can't be decrypted), which is a handy "log out everywhere" switch.
 
+## 2b. Allow only your account (required)
+
+The app is on the public internet, so it only lets in the Filester usernames you list.
+Everyone else is refused **before** their password is sent anywhere, and removing a
+name signs that person out on their next request. With no list set, nobody can sign in.
+
+```bash
+npx wrangler secret put ALLOWED_USERS
+# enter your Filester username; several are allowed: alice,bob
+```
+
+Or use the Dashboard: **filester-navigator → Settings → Variables and Secrets → Add → Secret**, name `ALLOWED_USERS`.
+
+Backups are also kept separate per user (`backups/<username>/…`), so even an allowed second
+person can never see, download or delete your backups.
+
 ## 3. R2 bucket for backups
 
 The Expiring soon page can copy files into R2. Create the bucket once (the name must match `wrangler.jsonc`):

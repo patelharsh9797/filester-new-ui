@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { clearSession, jwtExpiry, readSession, writeSession } from './session.server'
+import { allowedUsers, clearSession, isAllowedUser, jwtExpiry, readSession, writeSession } from './session.server'
 import { filesterLogin, verifyApiKey } from './filester.server'
 
 /** Who is signed in (never returns the token or API key to the browser). */
@@ -24,6 +24,14 @@ export const login = createServerFn({ method: 'POST' })
     return { username, password, code: str(d.code, 16).trim() || undefined, apiKey: str(d.apiKey, 128).trim() || undefined }
   })
   .handler(async ({ data }): Promise<LoginResponse> => {
+    // Personal deployment: refuse anyone not on the allowlist *before* their
+    // password is sent anywhere.
+    if (allowedUsers().size === 0) {
+      return { status: 'error', message: 'This app has no allowed users yet. The owner needs to set ALLOWED_USERS (see docs/DEPLOY.md).' }
+    }
+    if (!isAllowedUser(data.username)) {
+      return { status: 'error', message: 'This is a private app. Your Filester account isn’t allowed to sign in here.' }
+    }
     const r = await filesterLogin(data.username, data.password, data.code)
     if (!r.ok) return r.requires2fa ? { status: 'needs-2fa' } : { status: 'error', message: r.message }
 

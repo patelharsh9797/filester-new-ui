@@ -19,6 +19,7 @@
     // Backups older than this are deleted automatically (checked whenever the app lists backups).
     "BACKUP_RETENTION_DAYS": "7"
   }
-  // Secret (set with `npx wrangler secret put SESSION_SECRET`, never committed):
+  // Secrets (set with `npx wrangler secret put <NAME>`, never committed):
   //   SESSION_SECRET – 32+ random characters used to encrypt the login cookie.
+  //   ALLOWED_USERS  – Filester usernames allowed to sign in, comma-separated (empty = nobody).
 }
