@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, DatabaseBackup, ExternalLink, Eye, EyeOff, Loader2, ShieldCheck, Unplug } from 'lucide-react'
+import { CheckCircle2, DatabaseBackup, ExternalLink, Eye, EyeOff, Loader2, ShieldCheck, Trash2, Unplug } from 'lucide-react'
 import { connectBucket, disconnectBucket, saveBackupSettings } from '../lib/backup'
 import { formatDate } from '../lib/format'
 import { useBackupConfig } from '../state/backups'
@@ -185,13 +185,23 @@ function Connected() {
 }
 
 function DisconnectDialog({ bucket, onDone }: { bucket: string; onDone: (choice: 'keep' | 'delete' | null) => void }) {
+  const option = (choice: 'keep' | 'delete', icon: React.ReactNode, title: string, detail: React.ReactNode, danger?: boolean) => (
+    <button onClick={() => onDone(choice)}
+      className={`w-full flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${danger ? 'border-danger/40 hover:bg-danger-soft' : 'border-line hover:bg-hover'}`}>
+      <span className={`mt-0.5 shrink-0 ${danger ? 'text-danger' : 'text-muted'}`}>{icon}</span>
+      <span className="min-w-0">
+        <span className={`block text-sm font-medium ${danger ? 'text-danger' : ''}`}>{title}</span>
+        <span className="block text-xs text-muted">{detail}</span>
+      </span>
+    </button>
+  )
   return (
-    <Modal title="Disconnect your bucket?" onClose={() => onDone(null)} footer={<>
-      <button className="btn" onClick={() => onDone(null)}>Cancel</button>
-      <button className="btn" onClick={() => onDone('keep')}>Disconnect, keep backups</button>
-      <button className="btn-danger" onClick={() => onDone('delete')}>Delete backups &amp; disconnect</button>
-    </>}>
-      <p className="text-sm text-muted">Your stored keys are deleted and backups turn off. Files already in <b className="text-ink">{bucket}</b> stay there unless you choose to delete them — you can also manage them in the Cloudflare dashboard.</p>
+    <Modal title="Disconnect your bucket?" onClose={() => onDone(null)} footer={<button className="btn" onClick={() => onDone(null)}>Cancel</button>}>
+      <p className="text-sm text-muted mb-3">Your stored keys are deleted and backups turn off for your account.</p>
+      <div className="space-y-2">
+        {option('keep', <Unplug className="size-4" />, 'Disconnect, keep backups', <>Files already in <b className="text-ink">{bucket}</b> stay there — manage them in the Cloudflare dashboard.</>)}
+        {option('delete', <Trash2 className="size-4" />, 'Delete backups & disconnect', <>Permanently deletes every backup this app made in <b>{bucket}</b>, then disconnects.</>, true)}
+      </div>
     </Modal>
   )
 }

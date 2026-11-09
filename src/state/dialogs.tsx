@@ -38,7 +38,7 @@ export function Modal({ title, onClose, children, footer, wide }: {
           <button className="btn-icon -mr-2" onClick={onClose} aria-label="Close"><X className="size-4" /></button>
         </div>
         <div className="px-5 pb-4 overflow-y-auto min-h-0">{children}</div>
-        {footer && <div className="flex justify-end gap-2 px-5 py-3 border-t border-line">{footer}</div>}
+        {footer && <div className="flex flex-wrap justify-end gap-2 px-5 py-3 border-t border-line">{footer}</div>}
       </div>
     </div>
   )
