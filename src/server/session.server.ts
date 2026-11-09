@@ -8,6 +8,8 @@ import { deleteCookie, getCookie, setCookie } from '@tanstack/react-start/server
 
 export interface Session {
   username: string
+  /** Filester's numeric user id (stable even if the username changes); keys per-user data */
+  userId?: number
   /** Filester session JWT (web endpoints: rename, folder edit, info) */
   token: string
   /** Filester API key (documented REST API) */
@@ -68,9 +70,8 @@ export function jwtExpiry(token: string): number {
 }
 
 /**
- * Filester usernames allowed to use this deployment, from the ALLOWED_USERS secret
- * (comma- or space-separated, case-insensitive). Unset or empty = nobody: the app
- * is personal, so it fails closed rather than open.
+ * Optional sign-in allowlist from the ALLOWED_USERS secret (comma- or space-separated
+ * Filester usernames, case-insensitive). Unset or empty = the app is public.
  */
 export function allowedUsers(): Set<string> {
   const raw = (env as unknown as Record<string, string | undefined>).ALLOWED_USERS ?? ''
@@ -78,7 +79,8 @@ export function allowedUsers(): Set<string> {
 }
 
 export function isAllowedUser(username: string) {
-  return allowedUsers().has(username.trim().toLowerCase())
+  const list = allowedUsers()
+  return list.size === 0 || list.has(username.trim().toLowerCase())
 }
 
 /** The signed-in user — only if they're still on the allowlist (removing someone signs them out). */

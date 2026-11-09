@@ -4,7 +4,6 @@ export interface BackupInfo {
   key: string
   slug: string
   name: string
-  folder: string
   size: number
   backedUpAt: string
   expiresAt: string
@@ -12,6 +11,7 @@ export interface BackupInfo {
 
 export interface PendingUpload {
   key: string
+  uploadId: string
   slug: string
   name: string
   size: number
@@ -22,6 +22,8 @@ export interface BackupList {
   backups: BackupInfo[]
   /** Unfinished (interrupted) multipart uploads still holding space in R2 */
   pending: PendingUpload[]
+  /** Name of the user's connected bucket */
+  bucket: string
   used: number
   limit: number
   retentionDays: number
@@ -45,6 +47,21 @@ async function call<T>(action: string, body?: unknown, signal?: AbortSignal): Pr
 }
 
 export const listBackups = () => call<BackupList>('list')
+
+/** The user's backup bucket settings (keys are never sent back; only a hint). */
+export interface BackupConfigView {
+  accountId: string
+  bucket: string
+  accessKeyHint: string
+  retentionDays: number
+  limitGb: number
+  connectedAt: string
+}
+export const getBackupConfig = () => call<{ connected: boolean; config: BackupConfigView | null }>('config')
+export const connectBucket = (c: { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string }) =>
+  call<{ config: BackupConfigView }>('connect', c)
+export const saveBackupSettings = (s: { retentionDays: number; limitGb: number }) => call<{ config: BackupConfigView }>('settings', s)
+export const disconnectBucket = (deleteBackups: boolean) => call<{ deleted: number }>('disconnect', { deleteBackups })
 export const deleteBackups = (keys: string[]) => call<{ deleted: number }>('delete', { keys })
 export const discardPending = (keys: string[] | 'all') => call<{ discarded: number }>('discard', keys === 'all' ? { all: true } : { keys })
 export const backupDownloadUrl = (key: string) => `/api/backup/download?key=${encodeURIComponent(key)}`
@@ -68,7 +85,7 @@ export interface MultipartState {
  * after every finished part so the caller can persist progress.
  */
 export async function runBackup(
-  file: { slug: string; folder: string; type?: string },
+  file: { slug: string; type?: string },
   onProgress: (copied: number, total: number) => void,
   signal: AbortSignal,
   opts: { resume?: MultipartState | null; onState?: (s: MultipartState | null) => void } = {},

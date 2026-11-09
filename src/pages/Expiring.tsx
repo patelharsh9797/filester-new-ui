@@ -13,7 +13,7 @@ import { FileInfoDialog } from '../components/FileInfo'
 import { copyText, useActions } from '../state/actions'
 import { useOpenDialog } from '../state/dialogs'
 import { useToast } from '../state/toast'
-import { useBackupList, useBackups, type BackupJob } from '../state/backups'
+import { useBackupConfig, useBackupList, useBackups, type BackupJob } from '../state/backups'
 import { backupDownloadUrl, type BackupInfo } from '../lib/backup'
 import { Skeleton } from './Overview'
 
@@ -35,6 +35,7 @@ export function ExpiringPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const { jobs, enqueue } = useBackups()
   const backupList = useBackupList()
+  const backupsOn = !!useBackupConfig().data?.connected
   const backedUp = useMemo(() => new Map((backupList.data?.backups ?? []).map((b) => [b.slug, b])), [backupList.data])
   const backup = (files: ExpiringFile[]) => {
     const space = backupList.data ? backupList.data.limit - backupList.data.used : Infinity
@@ -129,6 +130,14 @@ export function ExpiringPage() {
         <span className="text-xs text-faint basis-full sm:basis-auto sm:ml-auto">Filester's FAQ and API docs disagree; the FAQ rule is stricter.</span>
       </div>
 
+      {!backupsOn && (
+        <Link to="/backups" className="flex items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-sm hover:border-faint/40">
+          <DatabaseBackup className="size-5 text-accent-ink shrink-0" />
+          <span className="flex-1"><b>Want a safety copy?</b> <span className="text-muted">Connect your own Cloudflare R2 bucket to turn on one-click backups of at-risk files.</span></span>
+          <span className="font-medium whitespace-nowrap">Set up →</span>
+        </Link>
+      )}
+
       {exp.activityError && (
         <p className="flex gap-2 text-sm bg-accent-soft text-accent-ink rounded-lg px-3 py-2">
           <AlertTriangle className="size-4 shrink-0 mt-0.5" />
@@ -156,9 +165,9 @@ export function ExpiringPage() {
           <option value="30">Next 30 days</option>
           <option value="all">All files</option>
         </select>
-        <select className="input w-auto" value={bf} onChange={(e) => set('backup', e.target.value === 'all' ? null : e.target.value)} aria-label="Backup state">
+        {backupsOn && <select className="input w-auto" value={bf} onChange={(e) => set('backup', e.target.value === 'all' ? null : e.target.value)} aria-label="Backup state">
           {Object.entries(BACKUP_FILTERS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
+        </select>}
         <span className="text-xs text-faint">{rows.length} files · {formatBytes(atRiskSize)}</span>
       </div>
 
@@ -187,7 +196,7 @@ export function ExpiringPage() {
             <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-accent-soft border-b border-line text-sm">
               <button className="btn-icon" onClick={clear} aria-label="Clear selection"><X className="size-4" /></button>
               <span className="font-medium text-accent-ink mr-auto">{sel.length} selected · {formatBytes(sel.reduce((n, f) => n + f.size, 0))}</span>
-              <button className="btn h-8" onClick={() => { backup(sel); clear() }}><DatabaseBackup className="size-4" /> Back up to R2</button>
+              {backupsOn && <button className="btn h-8" onClick={() => { backup(sel); clear() }}><DatabaseBackup className="size-4" /> Back up to R2</button>}
               <button className="btn h-8" onClick={() => copyText(sel.map((f) => f.url).join('\n'), toast, 'Links')}><Copy className="size-4" /> Copy links</button>
               <button className="btn h-8" onClick={() => actions.moveFiles(sel, clear)}><FolderInput className="size-4" /> Move</button>
               <button className="btn h-8 text-danger" onClick={() => actions.deleteFiles(sel, clear)}><Trash2 className="size-4" /> Delete</button>
@@ -214,7 +223,7 @@ export function ExpiringPage() {
                     { label: 'Details', icon: <Info className="size-4" />, onClick: () => openDialog((close) => <FileInfoDialog file={f} onClose={close} />) },
                     { label: 'Open on Filester', icon: <ExternalLink className="size-4" />, onClick: () => window.open(f.url, '_blank', 'noreferrer') },
                     { label: 'Copy link', icon: <Copy className="size-4" />, onClick: () => copyText(f.url, toast) },
-                    { label: backedUp.has(f.slug) ? 'Back up again' : 'Back up to R2', icon: <DatabaseBackup className="size-4" />, onClick: () => backup([f]) },
+                    { label: backedUp.has(f.slug) ? 'Back up again' : 'Back up to R2', icon: <DatabaseBackup className="size-4" />, onClick: () => backup([f]), hidden: !backupsOn },
                     'sep',
                     { label: 'Move to…', icon: <FolderInput className="size-4" />, onClick: () => actions.moveFiles([f]) },
                     { label: 'Delete', icon: <Trash2 className="size-4" />, danger: true, onClick: () => actions.deleteFiles([f]) },

@@ -51,44 +51,56 @@ Then either:
 
 Changing this secret later signs everyone out (old cookies can't be decrypted), which is a handy "log out everywhere" switch.
 
-## 2b. Allow only your account (required)
+## 2b. Set the credentials secret (required, once)
 
-The app is on the public internet, so it only lets in the Filester usernames you list.
-Everyone else is refused **before** their password is sent anywhere, and removing a
-name signs that person out on their next request. With no list set, nobody can sign in.
-
-```bash
-npx wrangler secret put ALLOWED_USERS
-# enter your Filester username; several are allowed: alice,bob
-```
-
-Or use the Dashboard: **filester-navigator → Settings → Variables and Secrets → Add → Secret**, name `ALLOWED_USERS`.
-
-Backups are also kept separate per user (`backups/<username>/…`), so even an allowed second
-person can never see, download or delete your backups.
-
-## 3. R2 bucket for backups
-
-The Expiring soon page can copy files into R2. Create the bucket once (the name must match `wrangler.jsonc`):
+Backups are **bring-your-own-bucket**: each user connects their own R2 bucket in the app,
+and their R2 keys are stored encrypted in a KV namespace (created automatically on the first
+deploy — no ID needed). The encryption key comes from this secret, separate from the cookie secret:
 
 ```bash
-npx wrangler r2 bucket create filester-backups
+openssl rand -base64 48            # generate a value
+npx wrangler secret put CREDENTIALS_SECRET
 ```
 
-Or use the Dashboard: **R2 → Create bucket → `filester-backups`**. The Worker gets access through the `BACKUPS` binding automatically on the next deploy.
+Keep it stable: if you change it, everyone's stored bucket keys become unreadable and
+users have to connect their bucket again (nothing else is lost).
 
-Two plain-text vars in `wrangler.jsonc` control it (you can also override them in the Worker's **Settings → Variables and Secrets**):
+## 2c. Optional: restrict who can sign in
+
+The app is public by default — anyone with a Filester account can use it, and their backups
+go to *their own* bucket. To limit sign-in to specific Filester usernames:
+
+```bash
+npx wrangler secret put ALLOWED_USERS     # e.g. alice,bob
+```
+
+Delete the secret to make the app public again. Removing a name signs that person out on their next request.
+
+## 3. Backups (each user's own R2 bucket)
+
+Nothing to set up on the Worker. Each user turns backups on in **Settings → Backups**:
+
+1. Create an R2 bucket in **their** Cloudflare account.
+2. Create an R2 API token with **Object Read & Write**, limited to **only that bucket**.
+3. Paste the account ID, access key ID, secret access key and bucket name, then **Test & connect**.
+
+Their keys are encrypted (AES-GCM, bound to their Filester account), never sent back to the browser,
+and can be removed with **Disconnect**. The Worker only ever talks to `https://<account-id>.r2.cloudflarestorage.com`.
+Each user sets their own retention (default 7 days) and size limit (default 10 GB).
+
+One setting is yours, as the operator, because every backup is copied **through your Worker**:
 
 | Var | Default | Meaning |
 |---|---|---|
-| `BACKUP_LIMIT_GB` | `10` | New backups are refused once the bucket would go over this. 10 GB is R2's free tier. |
-| `BACKUP_RETENTION_DAYS` | `7` | Backups older than this are deleted automatically, whenever the app lists backups. |
+| `BACKUP_DAILY_CAP_GB` | `50` | Max GB each user may copy per day (0 = no cap). Protects your Worker's request quota. |
 
-**Unfinished uploads.** Big files are copied with R2 multipart uploads. If a backup stops part-way (tab closed, phone call),
-its pieces stay in R2: they count in the bucket size but aren't listed as objects. The app records each unfinished upload,
-lets you resume or discard it (Backups page / backup panel) and discards anything older than 24 hours on its own.
-As a safety net, check **R2 → filester-backups → Settings → Object lifecycle rules**: keep the rule that aborts
-incomplete multipart uploads and set it to **1 day** (Cloudflare's default is 7).
+**Unfinished uploads.** Big files are copied with multipart uploads. If a backup stops part-way (tab closed,
+phone call), its pieces stay in the user's bucket until resumed or discarded; the app lists them on the
+Backups page and aborts anything older than 24 hours. Users can also add an R2 lifecycle rule
+(bucket → Settings → Object lifecycle rules) that aborts incomplete multipart uploads after 1 day.
+
+**Moving from the earlier version:** the Worker no longer has its own `BACKUPS` bucket binding. Connect your
+`filester-backups` bucket in Settings like any user; old objects under `backups/…` can be deleted in the R2 dashboard.
 
 ## 4. Custom domain
 

@@ -1,13 +1,16 @@
 # Copy to .dev.vars for local development (`npm run dev`). Never commit .dev.vars.
 # In production set the secret with: npx wrangler secret put SESSION_SECRET
 SESSION_SECRET="replace-with-32-plus-random-characters"
-# Filester usernames allowed to sign in (comma-separated). Empty = nobody.
-ALLOWED_USERS="your-filester-username"
+CREDENTIALS_SECRET="replace-with-another-32-plus-random-characters"
+# Optional: restrict sign-in to these Filester usernames (comma-separated). Unset = public.
+# ALLOWED_USERS="your-filester-username"
 
 # Optional: use a Filester mirror instead of the default origins.
 # FILESTER_WEB_ORIGIN="https://filester.me"
 # FILESTER_API_ORIGIN="https://u1.filester.me"
 
-# Optional overrides of the wrangler.jsonc vars for backups.
-# BACKUP_LIMIT_GB="10"
-# BACKUP_RETENTION_DAYS="7"
+# Optional: per-user daily backup cap through this Worker (GB, 0 = none).
+# BACKUP_DAILY_CAP_GB="50"
+# Testing only: send R2 calls to a local S3-compatible server, and use small multipart parts.
+# R2_ENDPOINT_OVERRIDE="http://127.0.0.1:5055"
+# BACKUP_PART_MB="5"

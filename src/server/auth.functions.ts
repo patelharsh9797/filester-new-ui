@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
-import { allowedUsers, clearSession, isAllowedUser, jwtExpiry, readSession, writeSession } from './session.server'
-import { filesterLogin, verifyApiKey } from './filester.server'
+import { clearSession, isAllowedUser, jwtExpiry, readSession, writeSession } from './session.server'
+import { filesterLogin, filesterUserId, verifyApiKey } from './filester.server'
 
 /** Who is signed in (never returns the token or API key to the browser). */
 export const getSession = createServerFn({ method: 'GET' }).handler(async () => {
@@ -24,11 +24,8 @@ export const login = createServerFn({ method: 'POST' })
     return { username, password, code: str(d.code, 16).trim() || undefined, apiKey: str(d.apiKey, 128).trim() || undefined }
   })
   .handler(async ({ data }): Promise<LoginResponse> => {
-    // Personal deployment: refuse anyone not on the allowlist *before* their
-    // password is sent anywhere.
-    if (allowedUsers().size === 0) {
-      return { status: 'error', message: 'This app has no allowed users yet. The owner needs to set ALLOWED_USERS (see docs/DEPLOY.md).' }
-    }
+    // If the owner set an allowlist, refuse anyone else *before* their password is
+    // sent anywhere. (No allowlist = public app.)
     if (!isAllowedUser(data.username)) {
       return { status: 'error', message: 'This is a private app. Your Filester account isn’t allowed to sign in here.' }
     }
@@ -42,7 +39,8 @@ export const login = createServerFn({ method: 'POST' })
     }
     if (!apiKey) return { status: 'needs-api-key' }
 
-    await writeSession({ username: data.username, token: r.token, apiKey, exp: jwtExpiry(r.token) })
+    const userId = await filesterUserId(apiKey).catch(() => undefined)
+    await writeSession({ username: data.username, userId, token: r.token, apiKey, exp: jwtExpiry(r.token) })
     return { status: 'ok', username: data.username }
   })
 

@@ -1,5 +1,6 @@
 import { Check, Download, ExternalLink, LogOut, Share, Smartphone, SquarePlus } from 'lucide-react'
 import { usePwaInstall } from '../lib/pwa'
+import { BackupSetup } from '../components/BackupSetup'
 import { useSession, useSignOut } from '../state/session'
 import { useAccount, useLibrary } from '../lib/library'
 import { formatBytes } from '../lib/format'
@@ -43,6 +44,8 @@ export function SettingsPage() {
         <a className="btn" href="https://filester.me/account" target="_blank" rel="noreferrer"><ExternalLink className="size-4" /> Filester account settings</a>
         <button className="btn text-danger ml-auto" onClick={() => signOut()}><LogOut className="size-4" /> Sign out</button>
       </div>
+
+      <BackupSetup />
 
       <section className="card p-4 space-y-3">
         <div className="flex items-center gap-3">

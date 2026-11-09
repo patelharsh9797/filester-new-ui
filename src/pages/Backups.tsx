@@ -3,7 +3,9 @@ import { Link } from '@tanstack/react-router'
 import { Check, Download, Loader2, RotateCw, Trash2, X } from 'lucide-react'
 import { backupDownloadUrl, deleteBackups, discardPending } from '../lib/backup'
 import { formatBytes, formatDate, formatRelative, kindOf } from '../lib/format'
-import { useBackupList, useBackups } from '../state/backups'
+import { useBackupConfig, useBackupList, useBackups } from '../state/backups'
+import { BackupSetup } from '../components/BackupSetup'
+import { useLibrary } from '../lib/library'
 import { useDialogs } from '../state/dialogs'
 import { useToast } from '../state/toast'
 import { useQueryClient } from '@tanstack/react-query'
@@ -11,7 +13,10 @@ import { FileKindIcon } from '../components/icons'
 import { Skeleton } from './Overview'
 
 export function BackupsPage() {
+  const cfg = useBackupConfig()
   const list = useBackupList()
+  const lib = useLibrary()
+  const folderOf = (slug: string) => lib.files.find((f) => f.slug === slug)?.folderPath ?? ''
   const { jobs, cancel, clearFinished, enqueue } = useBackups()
   const { confirm } = useDialogs()
   const toast = useToast()
@@ -45,18 +50,21 @@ export function BackupsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Backups</h1>
         <p className="text-sm text-muted max-w-3xl">
-          Copies of Filester files stored in your Cloudflare R2 bucket. Start backups from the <Link to="/expiring" className="text-accent-ink underline">Expiring soon</Link> page.
+          Copies of Filester files stored in your own Cloudflare R2 bucket. Start backups from the <Link to="/expiring" className="text-accent-ink underline">Expiring soon</Link> page.
           {data && <> Backups are deleted automatically after <b>{data.retentionDays} days</b>.</>}
         </p>
       </div>
 
+      <BackupSetup />
+
+      {cfg.data?.connected && <>
       <div className="card p-4">
         <div className="flex justify-between text-sm mb-2">
           <span className="text-muted">R2 backup space</span>
           <span className="tabular">{data ? `${formatBytes(data.used)} of ${formatBytes(data.limit, 0)}` : '…'}</span>
         </div>
         <div className="h-2 rounded-full bg-raised overflow-hidden"><div className={`h-full ${pct > 90 ? 'bg-danger' : 'bg-accent'}`} style={{ width: `${Math.max(pct, data?.used ? 1 : 0)}%` }} /></div>
-        <p className="text-xs text-faint mt-2">Includes unfinished uploads. New backups are refused once they would go over this limit (set by <code>BACKUP_LIMIT_GB</code>).</p>
+        <p className="text-xs text-faint mt-2">In your bucket <b>{data?.bucket}</b>, including unfinished uploads. New backups are refused once they would go over your limit.</p>
       </div>
 
       {list.error && <p className="text-sm text-danger bg-danger-soft rounded-lg px-3 py-2">Couldn't load backups: {(list.error as Error).message}</p>}
@@ -153,7 +161,7 @@ export function BackupsPage() {
                         <FileKindIcon kind={kindOf(b.name, '')} />
                         <span className="min-w-0">
                           <span className="block truncate" title={b.name}>{b.name}</span>
-                          <span className="block truncate text-xs text-faint">{b.folder || 'Top level'}</span>
+                          <span className="block truncate text-xs text-faint">{folderOf(b.slug) || 'Top level'}</span>
                         </span>
                       </div>
                     </td>
@@ -162,7 +170,7 @@ export function BackupsPage() {
                     <td className="td text-muted whitespace-nowrap hidden sm:table-cell">{formatDate(b.expiresAt)}</td>
                     <td className="pr-2 text-right whitespace-nowrap">
                       <a className="btn-icon" href={backupDownloadUrl(b.key)} aria-label="Download backup" title="Download from R2"><Download className="size-4" /></a>
-                      <button className="btn-icon" onClick={() => enqueue([{ slug: b.slug, name: b.name, size: b.size, folderPath: b.folder }])} aria-label="Back up again" title="Copy again from Filester"><RotateCw className="size-4" /></button>
+                      <button className="btn-icon" onClick={() => enqueue([{ slug: b.slug, name: b.name, size: b.size, folderPath: folderOf(b.slug) }])} aria-label="Back up again" title="Copy again from Filester"><RotateCw className="size-4" /></button>
                       <button className="btn-icon" onClick={() => remove([b.key])} aria-label="Delete backup" title="Delete backup"><Trash2 className="size-4" /></button>
                     </td>
                   </tr>
@@ -172,6 +180,7 @@ export function BackupsPage() {
           </div>
         )}
       </section>
+      </>}
     </div>
   )
 }

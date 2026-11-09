@@ -13,7 +13,7 @@ Personal-use tool. It runs on Cloudflare Workers and talks to Filester's own API
 - 🌲 **Sidebar folder tree.** Expands to the folder you're viewing.
 - ⬆️ **Uploads.** Drag and drop anywhere to upload into the current folder. Files go up in chunks with retries using Filester's v2 protocol (up to 10 GB each).
 - ⏳ **Expiring soon.** Filester deletes files after a stretch with no downloads. A dedicated page shows how many days each file has left, an Overview banner and a sidebar badge warn you about anything due within 7 days, and red or amber badges appear next to at-risk files in every list. You can count from the FAQ rule (35 days without downloads, the default) or the API-docs rule (45 days without views or downloads).
-- 💾 **Manual R2 backups.** From the Expiring soon page, back up one file or a selection to your Cloudflare R2 bucket. Large files are copied in 64 MB parts with live progress. A Backups page lists stored copies with download and delete buttons, a space meter and a size limit, and copies are deleted automatically after 7 days (configurable).
+- 💾 **Backups to your own R2 bucket (opt-in).** Off by default. Each user connects their own Cloudflare R2 bucket in Settings (keys encrypted, never shown again); then they can back up at-risk files from the Expiring soon page. Large files go in 64 MB parts with live progress, resume after interruptions, and old copies are deleted after the user's chosen retention.
 - 🙈 **Bulk “Hide related”.** Turn Filester's “More from this album” section off (or back on) for many folders at once from the Folders page, with a filter showing which folders still display it. Password-protected folders are skipped so their passwords aren't removed.
 - 🧬 **Duplicate protection.** Uploads skip files already in the destination folder (same name and size), with options to skip by name only or upload everything. A Duplicates page finds same-named files within a folder and deletes the extra copies, keeping the oldest, newest or most-downloaded one.
 - 📱 **Installable app (PWA).** Install it on Android, iPhone/iPad or desktop to get its own icon and a full-screen window. A one-time popup after sign-in offers to install (Chrome/Edge show their install dialog; iOS gets Add to Home Screen steps), and Settings has the same option. The service worker caches only the app's own code and icons, never your files or API responses, and shows an offline page when there's no connection.
@@ -53,7 +53,7 @@ browser ──pages, /_serverFn (login/logout/session)──▶ Cloudflare Worke
 ```
 
 - Filester only allows CORS from `https://filester.me`, so the browser can't call it directly. The Worker forwards requests and attaches your credentials.
-- **Private by default:** only Filester usernames in the `ALLOWED_USERS` secret can sign in; backups are stored per user.
+- **Public by default:** anyone with a Filester account can sign in; set the optional `ALLOWED_USERS` secret to restrict it. Backups only ever go to each user's own bucket.
 - **Sign-in:** a server function logs in to filester.me and reads your API key from the Account page. It stores the session JWT and API key in an **AES-GCM-encrypted, HttpOnly, Secure, SameSite=Lax cookie**. Page scripts never see them, and nothing is stored server-side.
 - `/api/fs/*` rejects requests without a valid session and cross-site POSTs.
 - The signed-in pages render client-side (`ssr: false`). On load the browser fetches **all folders** (one call) and **all files** (100 per call). It builds the tree, paths, recursive sizes and search index in memory, so search is instant. Filester allows 1,000 requests an hour.
@@ -68,8 +68,10 @@ src/routes/login.tsx           sign-in page
 src/routes/_app.tsx            signed-in layout (auth guard, client-rendered)
 src/routes/_app/…              /, /folders, /folders/$id, /files, /settings
 src/routes/api/fs/$.ts         server route: pass-through to Filester
-src/routes/api/backup/$.ts     server route: manual Filester → R2 backups
-src/server/backup.server.ts    backup logic (download tokens, ranged copy, R2 multipart)
+src/routes/api/backup/$.ts     server route: connect bucket + Filester → user's R2 backups
+src/server/backup.server.ts    backup logic (download tokens, ranged copy, multipart)
+src/server/r2config.server.ts  users' R2 settings, encrypted in KV; daily cap
+src/server/s3.server.ts        minimal R2 (S3 API) client, SigV4
 src/server/auth.functions.ts   server functions: login, logout, getSession
 src/server/session.server.ts   encrypted session cookie
 src/server/filester.server.ts  Filester login + proxy logic

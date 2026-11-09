@@ -116,3 +116,12 @@ export async function verifyApiKey(apiKey: string): Promise<boolean> {
   const r = await fetch(`${U1}/api/v1/account`, { headers: { authorization: `Bearer ${apiKey}`, 'user-agent': UA } })
   return r.ok
 }
+
+/** Filester's numeric user id for an API key (from /api/v1/account). */
+export async function filesterUserId(apiKey: string): Promise<number> {
+  const { U1 } = filesterOrigins()
+  const r = await fetch(`${U1}/api/v1/account`, { headers: { authorization: `Bearer ${apiKey}`, 'user-agent': UA } })
+  const j = (await r.json().catch(() => ({}))) as { data?: { id?: number } }
+  if (!r.ok || typeof j.data?.id !== 'number') throw new Error('Could not read your Filester account id')
+  return j.data.id
+}

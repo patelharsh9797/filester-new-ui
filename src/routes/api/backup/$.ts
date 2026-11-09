@@ -1,17 +1,48 @@
-// /api/backup/<action> — manual R2 backups of Filester files (signed-in users only).
+// /api/backup/<action> — backups into the signed-in user's OWN R2 bucket.
+//
+// Setup:   GET config · POST connect · POST settings · POST disconnect
+// Backups: GET list · GET download · POST init · ticket · part · complete · abort · discard · delete
 import { createFileRoute } from '@tanstack/react-router'
-import { readSession } from '../../../server/session.server'
+import { readSession, type Session } from '../../../server/session.server'
 import {
-  BackupError, abortBackup, completeBackup, copyPart, deleteBackups, discardPending, getTicket, initBackup, listBackups, ownerOf, ownsKey, readBackup,
-  type DownloadTicket,
+  ConfigError, deleteConfig, loadConfig, maskConfig, parseCredentials, parseSettings, saveConfig, userIdOf, type R2Config,
+} from '../../../server/r2config.server'
+import { S3Error, s3 } from '../../../server/s3.server'
+import {
+  BackupError, PREFIX, abortBackup, completeBackup, copyPart, deleteBackups, deleteEverything, discardPending, getTicket,
+  initBackup, isBackupKey, listBackups, readBackup, type BackupContext, type DownloadTicket,
 } from '../../../server/backup.server'
 
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: { 'cache-control': 'private, no-store' } })
 const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.slice(0, max) : '')
+const SLUG_RE = /^[A-Za-z0-9_-]{1,32}$/
 
 function ticketFrom(v: unknown): DownloadTicket {
   const t = (v ?? {}) as Record<string, unknown>
   return { server: str(t.server), file: str(t.file, 300), token: str(t.token, 1000), name: str(t.name, 300), expiresAt: Number(t.expiresAt) || 0 }
+}
+
+/** Check the credentials really work: write, read back and delete a small test object. */
+async function testBucket(cfg: R2Config) {
+  const b = s3(cfg)
+  const key = `${PREFIX}.connection-test-${crypto.randomUUID()}`
+  const body = `filester-navigator connection test ${new Date().toISOString()}`
+  try {
+    await b.put(key, body, new TextEncoder().encode(body).length, { 'content-type': 'text/plain' })
+    const back = await (await b.get(key)).text()
+    if (back !== body) throw new ConfigError('The bucket returned different data than was written.')
+    await b.del(key)
+    await b.listMultipart(PREFIX)
+  } catch (e) {
+    if (e instanceof S3Error) throw new ConfigError(e.message, 400)
+    throw e
+  }
+}
+
+async function context(session: Session): Promise<BackupContext | null> {
+  const userId = await userIdOf(session)
+  const cfg = await loadConfig(userId)
+  return cfg ? { session, userId, cfg, bucket: s3(cfg) } : null
 }
 
 async function handle({ request, params }: { request: Request; params: { _splat?: string } }) {
@@ -21,69 +52,110 @@ async function handle({ request, params }: { request: Request; params: { _splat?
   }
   const session = await readSession()
   if (!session) return json({ success: false, message: 'Not signed in' }, 401)
-  // Everything below is scoped to this user's own backups.
-  const owner = ownerOf(session)
-  const isKey = (k: string) => ownsKey(owner, k)
-
   const action = params._splat ?? ''
+
   try {
-    if (request.method === 'GET' && action === 'list') return json({ success: true, ...(await listBackups(owner)) })
+    const body = request.method === 'POST' ? ((await request.json().catch(() => ({}))) as Record<string, unknown>) : {}
+
+    // ---------------------------------------------------------------- setup
+    if (action === 'config' && request.method === 'GET') {
+      const userId = await userIdOf(session)
+      const cfg = await loadConfig(userId)
+      return json({ success: true, connected: !!cfg, config: cfg ? maskConfig(cfg) : null })
+    }
+    if (action === 'connect' && request.method === 'POST') {
+      const userId = await userIdOf(session)
+      const creds = parseCredentials(body)
+      const current = await loadConfig(userId)
+      const cfg: R2Config = {
+        ...creds,
+        retentionDays: current?.retentionDays ?? 7,
+        limitGb: current?.limitGb ?? 10,
+        connectedAt: new Date().toISOString(),
+      }
+      await testBucket(cfg)
+      await saveConfig(userId, cfg)
+      return json({ success: true, connected: true, config: maskConfig(cfg) })
+    }
+    if (action === 'settings' && request.method === 'POST') {
+      const userId = await userIdOf(session)
+      const cfg = await loadConfig(userId)
+      if (!cfg) return json({ success: false, message: 'Connect a bucket first', code: 'NOT_CONNECTED' }, 409)
+      const next = { ...cfg, ...parseSettings(body) }
+      await saveConfig(userId, next)
+      return json({ success: true, config: maskConfig(next) })
+    }
+    if (action === 'disconnect' && request.method === 'POST') {
+      const userId = await userIdOf(session)
+      let deleted = 0
+      if (body.deleteBackups === true) {
+        const ctx = await context(session)
+        if (ctx) deleted = await deleteEverything(ctx).catch(() => 0)
+      }
+      await deleteConfig(userId)
+      return json({ success: true, deleted })
+    }
+
+    // ---------------------------------------------------------------- backups
+    const ctx = await context(session)
+    if (!ctx) return json({ success: false, message: 'Backups are off. Connect your R2 bucket in Settings to turn them on.', code: 'NOT_CONNECTED' }, 409)
+
+    if (request.method === 'GET' && action === 'list') return json({ success: true, ...(await listBackups(ctx)) })
 
     if (request.method === 'GET' && action === 'download') {
       const key = new URL(request.url).searchParams.get('key') ?? ''
-      const obj = isKey(key) ? await readBackup(owner, key) : null
+      const obj = isBackupKey(key) ? await readBackup(ctx, key) : null
       if (!obj) return json({ success: false, message: 'Backup not found' }, 404)
       const headers = new Headers({ 'cache-control': 'private, no-store' })
-      obj.writeHttpMetadata(headers)
-      headers.set('content-length', String(obj.size))
+      for (const h of ['content-type', 'content-length', 'content-disposition']) { const v = obj.headers.get(h); if (v) headers.set(h, v) }
+      if (!headers.has('content-disposition')) headers.set('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(key.split('/').pop() ?? 'backup')}`)
       return new Response(obj.body, { headers })
     }
 
     if (request.method !== 'POST') return json({ success: false, message: 'Method not allowed' }, 405)
-    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
 
     switch (action) {
       case 'init': {
         const slug = str(body.slug, 32)
-        if (!/^[A-Za-z0-9_-]+$/.test(slug)) return json({ success: false, message: 'Bad file id' }, 400)
-        return json({ success: true, ...(await initBackup(session, slug, str(body.folder, 500), str(body.type, 100) || 'application/octet-stream')) })
+        if (!SLUG_RE.test(slug)) return json({ success: false, message: 'Bad file id' }, 400)
+        return json({ success: true, ...(await initBackup(ctx, slug, str(body.type, 100) || 'application/octet-stream')) })
       }
       case 'ticket': {
         const slug = str(body.slug, 32)
-        if (!/^[A-Za-z0-9_-]+$/.test(slug)) return json({ success: false, message: 'Bad file id' }, 400)
+        if (!SLUG_RE.test(slug)) return json({ success: false, message: 'Bad file id' }, 400)
         return json({ success: true, ticket: await getTicket(session, slug) })
       }
       case 'part': {
-        const key = str(body.key, 300)
-        if (!isKey(key)) return json({ success: false, message: 'Bad key' }, 400)
-        const part = await copyPart({ key, uploadId: str(body.uploadId, 1000), size: Number(body.size), part: Number(body.part), ticket: ticketFrom(body.ticket) })
-        return json({ success: true, ...part })
+        const key = str(body.key, 600)
+        if (!isBackupKey(key)) return json({ success: false, message: 'Bad key' }, 400)
+        return json({ success: true, ...(await copyPart(ctx, { key, uploadId: str(body.uploadId, 1000), size: Number(body.size), part: Number(body.part), ticket: ticketFrom(body.ticket) })) })
       }
       case 'complete': {
-        const key = str(body.key, 300)
-        if (!isKey(key) || !Array.isArray(body.parts)) return json({ success: false, message: 'Bad request' }, 400)
+        const key = str(body.key, 600)
+        if (!isBackupKey(key) || !Array.isArray(body.parts)) return json({ success: false, message: 'Bad request' }, 400)
         const parts = (body.parts as { partNumber: number; etag: string }[]).map((p) => ({ partNumber: Number(p.partNumber), etag: str(p.etag, 200) }))
-        return json({ success: true, backup: await completeBackup(owner, { key, uploadId: str(body.uploadId, 1000), parts }) })
+        return json({ success: true, backup: await completeBackup(ctx, { key, uploadId: str(body.uploadId, 1000), parts }) })
       }
       case 'abort': {
-        const key = str(body.key, 300)
-        if (isKey(key)) await abortBackup({ key, uploadId: str(body.uploadId, 1000) })
+        const key = str(body.key, 600)
+        if (isBackupKey(key)) await abortBackup(ctx, { key, uploadId: str(body.uploadId, 1000) })
         return json({ success: true })
       }
       case 'discard': {
-        // Abort unfinished (interrupted) uploads: { keys: [...] } or { all: true }
-        const keys = body.all === true ? 'all' as const : Array.isArray(body.keys) ? (body.keys as unknown[]).map((k) => str(k, 300)).filter(isKey) : []
-        return json({ success: true, discarded: await discardPending(owner, keys) })
+        const keys = body.all === true ? 'all' as const : Array.isArray(body.keys) ? (body.keys as unknown[]).map((k) => str(k, 600)).filter(isBackupKey) : []
+        return json({ success: true, discarded: await discardPending(ctx, keys) })
       }
       case 'delete': {
-        const keys = Array.isArray(body.keys) ? (body.keys as unknown[]).map((k) => str(k, 300)).filter(isKey) : []
-        return json({ success: true, deleted: await deleteBackups(owner, keys) })
+        const keys = Array.isArray(body.keys) ? (body.keys as unknown[]).map((k) => str(k, 600)).filter(isBackupKey) : []
+        return json({ success: true, deleted: await deleteBackups(ctx, keys) })
       }
       default:
         return json({ success: false, message: 'Unknown action' }, 404)
     }
   } catch (e) {
+    if (e instanceof ConfigError) return json({ success: false, message: e.message, code: 'CONFIG' }, e.status)
     const err = e as BackupError
+    // Never echo credentials: messages come from our own code or mapped bucket errors.
     return json({ success: false, message: err.message || 'Backup failed', code: err.code }, err.status && err.status >= 400 ? err.status : 500)
   }
 }

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { discardPending, listBackups, runBackup, type MultipartState } from '../lib/backup'
+import { discardPending, getBackupConfig, listBackups, runBackup, type MultipartState } from '../lib/backup'
 import type { FileRow } from '../lib/types'
 import { useToast } from './toast'
 
@@ -62,8 +62,14 @@ const CONCURRENT = 3
 const STORE = 'fsnav.backup-queue.v1'
 let seq = 0
 
+/** Whether this user has connected their own R2 bucket (backups are off until they do). */
+export function useBackupConfig() {
+  return useQuery({ queryKey: ['backup-config'], queryFn: getBackupConfig, staleTime: 5 * 60_000 })
+}
+
 export function useBackupList() {
-  return useQuery({ queryKey: ['backups'], queryFn: listBackups, staleTime: 60_000 })
+  const cfg = useBackupConfig()
+  return useQuery({ queryKey: ['backups'], queryFn: listBackups, staleTime: 60_000, enabled: !!cfg.data?.connected })
 }
 
 /** Restore the queue saved before the tab was closed, killed or reloaded. */
@@ -180,7 +186,7 @@ export function BackupProvider({ children }: { children: ReactNode }) {
       controllers.current.set(job.slug, ctl)
       patch(job.slug, { status: 'running', startedAt: Date.now() })
       const attempt = (resume: MultipartState | null | undefined): Promise<unknown> =>
-        runBackup({ slug: job.slug, folder: job.folder, type: job.type }, (copied) => patch(job.slug, { copied }), ctl.signal, {
+        runBackup({ slug: job.slug, type: job.type }, (copied) => patch(job.slug, { copied }), ctl.signal, {
           resume,
           onState: (s) => patch(job.slug, { multipart: s ? { ...s, done: [...s.done] } : null }),
         }).catch((e: Error & { code?: string }) => {

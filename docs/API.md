@@ -179,7 +179,8 @@ Only uploads count against the rate limit (they return `X-RateLimit-Remaining`);
 |---|---|
 | `/_serverFn/…` | TanStack Start server functions: `login`, `logout`, `getSession` |
 | `/api/fs/v1/*`, `/api/fs/u1/*`, `/api/fs/v2/*`, `/api/fs/web/*` | Pass-through to the Filester endpoints above |
-| `/api/backup/list` · `download` · `init` · `ticket` · `part` · `complete` · `abort` · `delete` | R2 backups |
+| `/api/backup/config` · `connect` · `settings` · `disconnect` | Turn backups on/off with the user's own R2 bucket |
+| `/api/backup/list` · `download` · `init` · `ticket` · `part` · `complete` · `abort` · `discard` · `delete` | Backups into that bucket |
 
 ### Calls per action (566-file account)
 
@@ -187,3 +188,15 @@ Only uploads count against the rate limit (they return `X-RateLimit-Remaining`);
 |---|---|---|
 | Open / reload the app | 2 key calls + 6 paged file calls + 1 export | 2 key calls (#1, #2) + 1 export (#14) |
 | Back up one file | 1 key call (`/api/v1/file/<id>`) + 1 token | 1 token (#13), no key calls |
+
+### The user's own R2 bucket (S3-compatible API, SigV4 with their token)
+
+Host: `https://<account-id>.r2.cloudflarestorage.com/<bucket>/filester-navigator/<slug>/<file name>`
+
+| Operation | Used for |
+|---|---|
+| `PUT` object | Small files (≤ 64 MB) and the connection test |
+| `GET` / `DELETE` object | Download a backup / delete one, retention cleanup |
+| `GET ?list-type=2&prefix=` | List backups |
+| `POST ?uploads` · `PUT ?partNumber&uploadId` · `POST ?uploadId` · `DELETE ?uploadId` | Multipart: start, copy a 64 MB part, finish, abort |
+| `GET ?uploads&prefix=` · `GET ?uploadId` | List unfinished uploads and the space their parts use |
