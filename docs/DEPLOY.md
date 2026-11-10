@@ -92,7 +92,7 @@ One setting is yours, as the operator, because every backup is copied **through 
 
 | Var | Default | Meaning |
 |---|---|---|
-| `BACKUP_DAILY_CAP_GB` | `50` | Max GB each user may copy per day (0 = no cap). Protects your Worker's request quota. |
+| `BACKUP_DAILY_CAP_GB` | `50` | Max GB each user may copy per day (0 = no cap). Protects your Worker's request quota. Counted per Filester account as data is actually copied (failed or cancelled backups only count what went through); resets at 00:00 UTC. Users see a usage meter on the Backups page and in Settings. |
 
 **Unfinished uploads.** Big files are copied with multipart uploads. If a backup stops part-way (tab closed,
 phone call), its pieces stay in the user's bucket until resumed or discarded; the app lists them on the

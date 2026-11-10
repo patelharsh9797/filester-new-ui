@@ -4,6 +4,7 @@ import { CheckCircle2, DatabaseBackup, ExternalLink, Eye, EyeOff, Loader2, Shiel
 import { connectBucket, disconnectBucket, saveBackupSettings } from '../lib/backup'
 import { formatDate } from '../lib/format'
 import { useBackupConfig } from '../state/backups'
+import { DailyUsageMeter } from './DailyUsageMeter'
 import { Modal, useDialogs } from '../state/dialogs'
 import { useToast } from '../state/toast'
 
@@ -114,7 +115,8 @@ function ConnectForm({ compact }: { compact?: boolean }) {
 }
 
 function Connected() {
-  const cfg = useBackupConfig().data!.config!
+  const data = useBackupConfig().data!
+  const cfg = data.config!
   const qc = useQueryClient()
   const toast = useToast()
   const { open, confirm } = useDialogs()
@@ -166,6 +168,7 @@ function Connected() {
         </div>
         <button className="btn h-8 text-danger" onClick={disconnect}><Unplug className="size-4" /> Disconnect</button>
       </div>
+      {data.usage && <div className="rounded-lg border border-line p-3"><DailyUsageMeter usage={data.usage} /></div>}
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="space-y-1">
           <span className="text-xs text-muted">Delete backups after (days)</span>

@@ -57,7 +57,14 @@ export interface BackupConfigView {
   limitGb: number
   connectedAt: string
 }
-export const getBackupConfig = () => call<{ connected: boolean; config: BackupConfigView | null }>('config')
+export interface DailyUsage {
+  used: number
+  /** null = no daily cap */
+  cap: number | null
+  remaining: number | null
+  resetsAt: string
+}
+export const getBackupConfig = () => call<{ connected: boolean; config: BackupConfigView | null; usage: DailyUsage }>('config')
 export const connectBucket = (c: { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string }) =>
   call<{ config: BackupConfigView }>('connect', c)
 export const saveBackupSettings = (s: { retentionDays: number; limitGb: number }) => call<{ config: BackupConfigView }>('settings', s)
@@ -132,7 +139,8 @@ export async function runBackup(
             break
           } catch (e) {
             const err = e as BackupApiError
-            if (signal.aborted || err.code === 'GONE') throw err
+            // Out of today's allowance: retrying won't help until it resets.
+            if (signal.aborted || err.code === 'GONE' || err.code === 'CAP' || err.code === 'CAP_FILE') throw err
             if (err.code === 'TOKEN' && attempt < 4) { ticket = (await call<{ ticket: Ticket }>('ticket', { slug: file.slug }, signal)).ticket; continue }
             if (!RETRYABLE.has(err.status) || attempt >= 5) throw err
             await sleep(Math.min(15_000, 1000 * 2 ** attempt))

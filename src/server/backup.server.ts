@@ -9,7 +9,7 @@
 import { env } from 'cloudflare:workers'
 import type { Session } from './session.server'
 import { filesterOrigins, UA } from './filester.server'
-import { addUsage, remainingToday, type R2Config } from './r2config.server'
+import { addUsage, getUsage, untilReset, type R2Config } from './r2config.server'
 import { S3Error, type Bucket } from './s3.server'
 
 /** All parts except the last must be the same size (S3 minimum 5 MB). */
@@ -215,12 +215,8 @@ export async function initBackup(ctx: BackupContext, slug: string, contentType: 
   if (used - existing + size > limit) {
     throw new BackupError(`Backing up ${ticket.name} would go over your ${cfg.limitGb} GB backup limit. Delete some backups or raise the limit in Settings.`, 413, 'LIMIT')
   }
-  // Fair-use cap on what goes through this Worker per user per day.
-  const left = await remainingToday(userId)
-  if (size > left) {
-    throw new BackupError(`Daily backup limit reached for today (${left <= 0 ? 'nothing' : `${Math.floor(left / 1024 ** 2)} MB`} left). Try again tomorrow.`, 429, 'CAP')
-  }
-  await addUsage(userId, size)
+  // Fair-use cap on what goes through this Worker per user per day (counted as data is copied).
+  await checkCap(userId, size, ticket.name)
 
   const headers = { 'content-type': contentType || 'application/octet-stream', 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(ticket.name)}` }
   const now = new Date()
@@ -229,12 +225,34 @@ export async function initBackup(ctx: BackupContext, slug: string, contentType: 
     if (size <= PART_SIZE) {
       const res = await fetchRange(ticket, 0, Math.max(0, size - 1))
       await bucket.put(key, size ? fixedLength(res, size) : '', size, headers)
+      await addUsage(userId, size)
       await removeOtherCopies(bucket, slugPrefix, key)
       return { done: true, backup: { key, slug, name: ticket.name, size, backedUpAt: now.toISOString(), expiresAt: new Date(now.getTime() + cfg.retentionDays * 86_400_000).toISOString() } }
     }
     const uploadId = await bucket.createMultipart(key, headers)
     return { done: false, key, uploadId, size, partSize: PART_SIZE, parts: Math.ceil(size / PART_SIZE), ticket }
   } catch (e) { wrap(e) }
+}
+
+/** 1.2 MB / 3.4 GB — one decimal so used + left add up visibly. */
+const gb = (n: number) => {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = n > 0 ? Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024))) : 0
+  return `${i === 0 ? n : (n / 1024 ** i).toFixed(1)} ${units[i]}`
+}
+
+/** Refuse when `bytes` doesn't fit in what's left of today's allowance. */
+async function checkCap(userId: number, bytes: number, fileName?: string) {
+  const u = await getUsage(userId)
+  if (u.cap === null || bytes <= u.remaining) return
+  const reset = `Resets in ${untilReset()}.`
+  if (fileName && bytes > u.cap) {
+    throw new BackupError(`${fileName} (${gb(bytes)}) is larger than the whole daily backup allowance (${gb(u.cap)}), so it can't be backed up here.`, 413, 'CAP_FILE')
+  }
+  if (u.remaining <= 0) throw new BackupError(`Daily backup allowance used up (${gb(u.used)} of ${gb(u.cap)}). ${reset}`, 429, 'CAP')
+  throw new BackupError(fileName
+    ? `Not enough of today's backup allowance left: ${fileName} is ${gb(bytes)}, ${gb(u.remaining)} left. ${reset}`
+    : `Daily backup allowance reached part-way through this file (${gb(u.remaining)} left). ${reset} Retry then to continue where it stopped.`, 429, 'CAP')
 }
 
 /** A file renamed on Filester gets a new key: drop its older copies once the new one is stored. */
@@ -248,9 +266,13 @@ export async function copyPart(ctx: BackupContext, p: { key: string; uploadId: s
   const start = (p.part - 1) * PART_SIZE
   const end = Math.min(p.size, start + PART_SIZE) - 1
   if (p.part < 1 || start >= p.size) throw new BackupError('Bad part number')
+  // Re-check per part, so several backups started at once can't overshoot the cap.
+  // If it's reached mid-file, the backup stops here and can resume after the reset.
+  await checkCap(ctx.userId, end - start + 1)
   const res = await fetchRange(p.ticket, start, end)
   try {
     const etag = await ctx.bucket.uploadPart(p.key, p.uploadId, p.part, fixedLength(res, end - start + 1), end - start + 1)
+    await addUsage(ctx.userId, end - start + 1)
     return { partNumber: p.part, etag }
   } catch (e) { wrap(e) }
 }

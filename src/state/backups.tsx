@@ -198,11 +198,13 @@ export function BackupProvider({ children }: { children: ReactNode }) {
         .then(() => {
           patch(job.slug, { status: 'done', copied: job.size, finishedAt: Date.now(), multipart: null })
           qc.invalidateQueries({ queryKey: ['backups'] })
+          qc.invalidateQueries({ queryKey: ['backup-config'] }) // daily usage
         })
         .catch((e: Error & { code?: string }) => {
           if (ctl.signal.aborted) return
           patch(job.slug, { status: 'error', error: e.message, finishedAt: Date.now() })
-          if (e.code === 'LIMIT') toast('error', e.message)
+          qc.invalidateQueries({ queryKey: ['backup-config'] })
+          if (e.code === 'LIMIT' || e.code === 'CAP') toast('error', e.message)
         })
         .finally(() => controllers.current.delete(job.slug))
     }

@@ -5,7 +5,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { readSession, type Session } from '../../../server/session.server'
 import {
-  ConfigError, deleteConfig, loadConfig, maskConfig, parseCredentials, parseSettings, saveConfig, userIdOf, type R2Config,
+  ConfigError, deleteConfig, getUsage, loadConfig, maskConfig, parseCredentials, parseSettings, saveConfig, userIdOf, type R2Config,
 } from '../../../server/r2config.server'
 import { S3Error, s3 } from '../../../server/s3.server'
 import {
@@ -60,8 +60,9 @@ async function handle({ request, params }: { request: Request; params: { _splat?
     // ---------------------------------------------------------------- setup
     if (action === 'config' && request.method === 'GET') {
       const userId = await userIdOf(session)
-      const cfg = await loadConfig(userId)
-      return json({ success: true, connected: !!cfg, config: cfg ? maskConfig(cfg) : null })
+      const [cfg, usage] = await Promise.all([loadConfig(userId), getUsage(userId)])
+      // remaining is Infinity without a cap, which JSON can't carry
+      return json({ success: true, connected: !!cfg, config: cfg ? maskConfig(cfg) : null, usage: { ...usage, remaining: usage.cap === null ? null : usage.remaining } })
     }
     if (action === 'connect' && request.method === 'POST') {
       const userId = await userIdOf(session)

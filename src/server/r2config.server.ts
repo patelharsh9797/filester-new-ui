@@ -132,17 +132,49 @@ export async function deleteConfig(userId: number) {
 
 // ---------------------------------------------------------------- daily cap
 
-/** Bytes this user may still copy today (Infinity when there's no cap). */
-export async function remainingToday(userId: number): Promise<number> {
-  const capGb = Number((env as unknown as Record<string, string | undefined>).BACKUP_DAILY_CAP_GB ?? 50)
-  if (!capGb || capGb <= 0) return Infinity
-  const used = Number(await env.STORE.get(`usage:${userId}:${new Date().toISOString().slice(0, 10)}`)) || 0
-  return capGb * 1024 ** 3 - used
+export interface DailyUsage {
+  /** Bytes copied through this Worker today (UTC day) */
+  used: number
+  /** Daily allowance in bytes, or null when there is no cap */
+  cap: number | null
+  /** Bytes still allowed today (Infinity without a cap) */
+  remaining: number
+  /** When the counter resets: next 00:00 UTC */
+  resetsAt: string
 }
 
-/** Record bytes copied today (approximate under concurrency, which is fine for a fair-use cap). */
+// One counter per user per UTC day: usage:<userId>:<YYYY-MM-DD>. Expires after 2 days.
+const usageKey = (userId: number, d = new Date()) => `usage:${userId}:${d.toISOString().slice(0, 10)}`
+
+function capBytes(): number | null {
+  const capGb = Number((env as unknown as Record<string, string | undefined>).BACKUP_DAILY_CAP_GB ?? 50)
+  return capGb > 0 ? capGb * 1024 ** 3 : null
+}
+
+export function nextReset(d = new Date()) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1))
+}
+
+export async function getUsage(userId: number): Promise<DailyUsage> {
+  const cap = capBytes()
+  const used = Number(await env.STORE.get(usageKey(userId))) || 0
+  return { used, cap, remaining: cap === null ? Infinity : Math.max(0, cap - used), resetsAt: nextReset().toISOString() }
+}
+
+/**
+ * Record bytes actually copied today. Called after each successful copy, so failed,
+ * cancelled or resumed backups only count what really went through. (KV read-modify-write
+ * is approximate under concurrency, which is fine for a fair-use cap.)
+ */
 export async function addUsage(userId: number, bytes: number) {
-  const key = `usage:${userId}:${new Date().toISOString().slice(0, 10)}`
+  if (bytes <= 0) return
+  const key = usageKey(userId)
   const used = Number(await env.STORE.get(key)) || 0
   await env.STORE.put(key, String(used + bytes), { expirationTtl: 2 * 86_400 })
+}
+
+/** "5h 12m" until the next reset */
+export function untilReset(d = new Date()) {
+  const mins = Math.max(1, Math.round((nextReset(d).getTime() - d.getTime()) / 60_000))
+  return mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`
 }

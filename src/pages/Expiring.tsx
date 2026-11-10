@@ -35,12 +35,17 @@ export function ExpiringPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const { jobs, enqueue } = useBackups()
   const backupList = useBackupList()
-  const backupsOn = !!useBackupConfig().data?.connected
+  const backupConfig = useBackupConfig().data
+  const backupsOn = !!backupConfig?.connected
   const backedUp = useMemo(() => new Map((backupList.data?.backups ?? []).map((b) => [b.slug, b])), [backupList.data])
   const backup = (files: ExpiringFile[]) => {
     const space = backupList.data ? backupList.data.limit - backupList.data.used : Infinity
     const need = files.reduce((n, f) => n + f.size, 0)
     if (need > space) toast('info', `Selected files need ${formatBytes(need)} but only ${formatBytes(Math.max(0, space))} of backup space is free — some will be refused.`)
+    const today = backupConfig?.usage
+    if (today && today.cap !== null && today.remaining !== null && need > today.remaining) {
+      toast('info', `Selected files need ${formatBytes(need)} but only ${formatBytes(today.remaining)} of today's backup allowance is left — the rest will stop and can be retried after the daily reset.`)
+    }
     enqueue(files)
     toast('success', `Backing up ${files.length} file${files.length === 1 ? '' : 's'} — keep this tab open`)
   }
