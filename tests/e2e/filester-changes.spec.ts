@@ -15,14 +15,14 @@ async function runCheck(page: Page) {
   await page.goto('/settings')
   await page.getByRole('button', { name: 'Check connection' }).click()
   const list = page.getByRole('list', { name: 'Connection check results' })
-  await expect(list.locator('li')).toHaveCount(8, { timeout: 20_000 })
+  await expect(list.locator('li')).toHaveCount(9, { timeout: 20_000 })
   await expect(page.getByRole('button', { name: 'Check again' })).toBeEnabled()
   return list
 }
 
 test('connection check passes on a healthy account', async ({ page }) => {
   const list = await runCheck(page)
-  await expect(list.locator('li[data-status=ok]')).toHaveCount(7)
+  await expect(list.locator('li[data-status=ok]')).toHaveCount(8)
   await expect(list.locator('li[data-status=skipped]')).toHaveCount(1) // no backup bucket
   await expect(page.getByText(/Everything works/)).toBeVisible()
 })

@@ -13,6 +13,7 @@ Personal-use tool. It runs on Cloudflare Workers and talks to Filester's own API
 - 🌲 **Sidebar folder tree.** Expands to the folder you're viewing.
 - ⬆️ **Uploads.** Drag and drop anywhere to upload into the current folder. Files go up in chunks with retries using Filester's v2 protocol (up to 10 GB each).
 - ⏳ **Expiring soon.** Filester deletes files after a stretch with no downloads. A dedicated page shows how many days each file has left, an Overview banner and a sidebar badge warn you about anything due within 7 days, and red or amber badges appear next to at-risk files in every list. You can count from the FAQ rule (35 days without downloads, the default) or the API-docs rule (45 days without views or downloads).
+- 📊 **Insights.** Downloads over the last 24 hours, 7 and 30 days, a daily chart, a weekday × hour heatmap and Filester's top files (24h/7d/30d/all time), from Filester's own stats. Plus downloads per folder including subfolders, storage growth by upload month, storage by file type, largest folders and files, and “quiet files” that nobody downloads and are drifting toward deletion.
 - 💾 **Backups to your own R2 bucket (opt-in).** Off by default. Each user connects their own Cloudflare R2 bucket in Settings (keys encrypted, never shown again); then they can back up at-risk files from the Expiring soon page. Large files go in 64 MB parts with live progress, resume after interruptions, and old copies are deleted after the user's chosen retention.
 - 🙈 **Bulk “Hide related”.** Turn Filester's “More from this album” section off (or back on) for many folders at once from the Folders page, with a filter showing which folders still display it. Password-protected folders are skipped so their passwords aren't removed.
 - 🧬 **Duplicate protection.** Uploads skip files already in the destination folder (same name and size), with options to skip by name only or upload everything. A Duplicates page finds same-named files within a folder and deletes the extra copies, keeping the oldest, newest or most-downloaded one.
@@ -68,7 +69,7 @@ src/router.tsx                 router + QueryClient
 src/routes/__root.tsx          HTML shell
 src/routes/login.tsx           sign-in page
 src/routes/_app.tsx            signed-in layout (auth guard, client-rendered)
-src/routes/_app/…              /, /folders, /folders/$id, /files, /settings
+src/routes/_app/…              /, /folders, /folders/$id, /files, /expiring, /insights, /backups, /duplicates, /settings
 src/routes/api/fs/$.ts         server route: pass-through to Filester
 src/routes/api/backup/$.ts     server route: connect bucket + Filester → user's R2 backups
 src/server/backup.server.ts    backup logic (download tokens, ranged copy, multipart)

@@ -16,6 +16,7 @@ import { Route as AppBackupsRouteImport } from './routes/_app/backups'
 import { Route as AppDuplicatesRouteImport } from './routes/_app/duplicates'
 import { Route as AppExpiringRouteImport } from './routes/_app/expiring'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
+import { Route as AppInsightsRouteImport } from './routes/_app/insights'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppFoldersIndexRouteImport } from './routes/_app/folders/index'
 import { Route as AppFoldersIdRouteImport } from './routes/_app/folders/$id'
@@ -56,6 +57,11 @@ const AppFilesRoute = AppFilesRouteImport.update({
   path: '/files',
   getParentRoute: () => AppRoute,
 } as any)
+const AppInsightsRoute = AppInsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/duplicates': typeof AppDuplicatesRoute
   '/expiring': typeof AppExpiringRoute
   '/files': typeof AppFilesRoute
+  '/insights': typeof AppInsightsRoute
   '/settings': typeof AppSettingsRoute
   '/folders/$id': typeof AppFoldersIdRoute
   '/api/backup/$': typeof ApiBackupSplatRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/duplicates': typeof AppDuplicatesRoute
   '/expiring': typeof AppExpiringRoute
   '/files': typeof AppFilesRoute
+  '/insights': typeof AppInsightsRoute
   '/settings': typeof AppSettingsRoute
   '/': typeof AppIndexRoute
   '/folders/$id': typeof AppFoldersIdRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/_app/duplicates': typeof AppDuplicatesRoute
   '/_app/expiring': typeof AppExpiringRoute
   '/_app/files': typeof AppFilesRoute
+  '/_app/insights': typeof AppInsightsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/folders/$id': typeof AppFoldersIdRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/duplicates'
     | '/expiring'
     | '/files'
+    | '/insights'
     | '/settings'
     | '/folders/$id'
     | '/api/backup/$'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/duplicates'
     | '/expiring'
     | '/files'
+    | '/insights'
     | '/settings'
     | '/'
     | '/folders/$id'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
     | '/_app/duplicates'
     | '/_app/expiring'
     | '/_app/files'
+    | '/_app/insights'
     | '/_app/settings'
     | '/_app/'
     | '/_app/folders/$id'
@@ -224,6 +236,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppFilesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/insights': {
+      id: '/_app/insights'
+      path: '/insights'
+      fullPath: '/insights'
+      preLoaderRoute: typeof AppInsightsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings': {
       id: '/_app/settings'
       path: '/settings'
@@ -267,6 +286,7 @@ interface AppRouteChildren {
   AppDuplicatesRoute: typeof AppDuplicatesRoute
   AppExpiringRoute: typeof AppExpiringRoute
   AppFilesRoute: typeof AppFilesRoute
+  AppInsightsRoute: typeof AppInsightsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppFoldersIdRoute: typeof AppFoldersIdRoute
@@ -278,6 +298,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppDuplicatesRoute: AppDuplicatesRoute,
   AppExpiringRoute: AppExpiringRoute,
   AppFilesRoute: AppFilesRoute,
+  AppInsightsRoute: AppInsightsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,
   AppFoldersIdRoute: AppFoldersIdRoute,

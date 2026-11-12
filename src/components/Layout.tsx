@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useParams } from '@tanstack/react-router'
-import { Copy as CopyIcon, DatabaseBackup, Files, FolderTree as FolderTreeIcon, Hourglass, Loader2, LayoutDashboard, LogOut, Menu as MenuIcon, RefreshCw, Search, Settings, Upload, X } from 'lucide-react'
+import { BarChart3, Copy as CopyIcon, DatabaseBackup, Files, FolderTree as FolderTreeIcon, Hourglass, Loader2, LayoutDashboard, LogOut, Menu as MenuIcon, RefreshCw, Search, Settings, Upload, X } from 'lucide-react'
 import { useAccount, useLibrary } from '../lib/library'
 import { formatBytes } from '../lib/format'
 import { useExpiring } from '../lib/expiry'
@@ -97,7 +97,7 @@ export function Layout() {
   const pct = acct ? Math.min(100, (acct.storage_used / acct.storage_limit) * 100) : 0
 
   const navCls = 'flex items-center gap-2.5 rounded-lg px-2.5 h-9 text-sm'
-  const nav = (to: '/' | '/folders' | '/files' | '/expiring' | '/backups' | '/duplicates', icon: React.ReactNode, label: string, count?: React.ReactNode) => (
+  const nav = (to: '/' | '/folders' | '/files' | '/expiring' | '/backups' | '/duplicates' | '/insights', icon: React.ReactNode, label: string, count?: React.ReactNode) => (
     <Link to={to} className={navCls} activeOptions={{ exact: to === '/', includeSearch: false }}
       activeProps={{ className: 'bg-hover text-ink font-medium' }} inactiveProps={{ className: 'text-muted hover:bg-hover hover:text-ink' }}>
       {icon}<span className="flex-1">{label}</span>{typeof count === 'number' ? <span className="text-xs text-faint tabular">{count.toLocaleString()}</span> : count}
@@ -122,6 +122,7 @@ export function Layout() {
           <span className={`min-w-5 h-5 px-1.5 rounded-full text-[11px] font-semibold grid place-items-center tabular ${expiring.counts.critical ? 'bg-danger text-white' : 'bg-accent-soft text-accent-ink'}`}
             title={`${expiring.urgent} files may be deleted within 7 days`}>{expiring.urgent}</span>
         ))}
+        {nav('/insights', <BarChart3 className="size-4" />, 'Insights')}
         {nav('/backups', <DatabaseBackup className="size-4" />, 'Backups', runningBackups > 0 && (
           <Loader2 className="size-3.5 animate-spin text-muted" aria-label={`${runningBackups} backups copying`} />
         ))}

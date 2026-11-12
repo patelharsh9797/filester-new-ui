@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { AlertTriangle, CheckCircle2, CircleSlash, Loader2, PlugZap, XCircle } from 'lucide-react'
-import { getAccount, getFileInfo, getFilesPage, getFolderFlags, getFolderInfo, getFolders, getFromExport } from '../lib/api'
+import { getAccount, getAccountStats, getFileInfo, getFilesPage, getFolderFlags, getFolderInfo, getFolders, getFromExport } from '../lib/api'
 import { getBackupConfig, listBackups } from '../lib/backup'
 import { FilesterChangedError } from '../lib/shape'
 import { plural } from '../lib/format'
@@ -27,6 +27,7 @@ export function ConnectionCheck() {
       { name: 'File list', what: 'files/export.csv', run: async () => { const r = await getFromExport(); ctx.slug = r.files[0]?.url.split('/d/')[1]; return `${plural(r.files.length, 'file')} with activity dates` } },
       { name: 'File list (API fallback)', what: 'v1/files', run: async () => { const r = await getFilesPage(1, 1); return `${plural(r.pagination.total, 'file')} reported` } },
       { name: 'Folder settings', what: 'manager/data', run: async () => { const m = await getFolderFlags(); return m.size ? `Hide-related and password flags for ${plural(m.size, 'folder')}` : 'No folders returned (normal if you have none)' } },
+      { name: 'Download stats', what: 'account/stats', run: async () => { const st = await getAccountStats(); return `${plural(st.totals.d30, 'download')} in the last 30 days` } },
       { name: 'File details', what: 'file/info', run: async () => ctx.slug ? `Read “${(await getFileInfo(ctx.slug)).original_name}”` : null },
       { name: 'Folder details', what: 'folder/info', run: async () => ctx.folder ? `Read “${(await getFolderInfo(ctx.folder)).name}”` : null },
       {

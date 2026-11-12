@@ -239,3 +239,68 @@ export function moveFiles(ids: string[], folder: string | null) {
 export function deleteFiles(ids: string[]) {
   return request<{ successful_deletes: number; failed_deletes: number; results?: { file_id: string; success: boolean; error?: string }[] }>('u1', 'file/delete', post({ identifiers: ids }))
 }
+
+// ---------------------------------------------------------------- stats
+
+/** A file or folder in one of Filester's stats lists (folders' exact fields vary, so normalized). */
+export interface StatItem {
+  /** File slug or folder identifier, when present */
+  id: string | null
+  name: string
+  downloads: number
+  kind: 'file' | 'folder'
+}
+type StatRange = '24h' | '7d' | '30d'
+
+export interface AccountStats {
+  totals: { d24: number; d7: number; d30: number }
+  /** Downloads per day, oldest first (last 30 days) */
+  days: { day: string; downloads: number }[]
+  trendingFiles: Record<StatRange, StatItem[]>
+  trendingFolders: Record<StatRange, StatItem[]>
+  alltimeFiles: StatItem[]
+  alltimeFolders: StatItem[]
+  risingFiles: StatItem[]
+  coolingFiles: StatItem[]
+  /** 7 rows (Sunday first) × 24 hours, UTC; null if missing */
+  heatmap: number[][] | null
+  dataSince: string | null
+}
+
+function statItems(list: unknown, kind: 'file' | 'folder'): StatItem[] {
+  if (!Array.isArray(list)) return []
+  return list.flatMap((raw) => {
+    if (!raw || typeof raw !== 'object') return []
+    const o = raw as Record<string, unknown>
+    const str = (...k: string[]) => k.map((x) => o[x]).find((v) => typeof v === 'string' && v) as string | undefined
+    const num = (...k: string[]) => Number(k.map((x) => o[x]).find((v) => typeof v === 'number') ?? 0)
+    const name = str('name', 'Name', 'folder_name', 'original_name')
+    if (!name) return []
+    return [{ id: str(kind === 'file' ? 'slug' : 'identifier', 'Identifier', 'slug') ?? null, name, downloads: num('downloads', 'Downloads', 'count'), kind }]
+  })
+}
+const ranges = (v: unknown, kind: 'file' | 'folder') => {
+  const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>
+  return { '24h': statItems(o['24h'], kind), '7d': statItems(o['7d'], kind), '30d': statItems(o['30d'], kind) }
+}
+
+/** Download statistics behind Filester's own dashboard (web endpoint). */
+export async function getAccountStats(): Promise<AccountStats> {
+  const d = expectShape<Record<string, unknown>>('account/stats', await request('web', 'account/stats'), SHAPES.stats)
+  const totals = expectShape<AccountStats['totals']>('account/stats', d.totals, SHAPES.statsTotals)
+  const days = expectList<{ day: string; downloads: number }>('account/stats', d.sparkline, SHAPES.statsDay)
+  const hm = d.heatmap
+  const heatmap = Array.isArray(hm) && hm.length === 7 && hm.every((r) => Array.isArray(r) && r.length === 24) ? (hm as number[][]) : null
+  return {
+    totals,
+    days: [...days].sort((a, b) => a.day.localeCompare(b.day)),
+    trendingFiles: ranges(d.trending_files, 'file'),
+    trendingFolders: ranges(d.trending_folders, 'folder'),
+    alltimeFiles: statItems(d.alltime_files, 'file'),
+    alltimeFolders: statItems(d.alltime_folders, 'folder'),
+    risingFiles: statItems(d.movers_files, 'file'),
+    coolingFiles: statItems(d.cooling_files, 'file'),
+    heatmap,
+    dataSince: typeof d.data_since === 'string' ? d.data_since : null,
+  }
+}

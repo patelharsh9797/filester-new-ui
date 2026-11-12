@@ -67,6 +67,9 @@ export const SHAPES = {
   fileInfo: { slug: 'string', original_name: 'string', size: 'number' },
   folderInfo: { name: 'string', has_password: 'boolean', hide_related: 'boolean' },
   managerFolder: { Identifier: 'string' },
+  stats: { totals: 'object', sparkline: 'array', heatmap: 'array|null' },
+  statsTotals: { d24: 'number', d7: 'number', d30: 'number' },
+  statsDay: { day: 'string', downloads: 'number' },
 } satisfies Record<string, Spec>
 
 /** CSV export columns the app reads. */

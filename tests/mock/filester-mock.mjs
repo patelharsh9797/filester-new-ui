@@ -77,10 +77,10 @@ function seed() {
   const taxes = addFolder(alice, 'Taxes 2025', docs.id, { public: false })
   addFolder(alice, 'Locked Vault', null, { password: 'vault-pass-123' })
   const old = addFolder(alice, 'Old Uploads')
-  addFile(alice, 'Blade.Runner.1982.trailer.mp4', scifi)
+  addFile(alice, 'Blade.Runner.1982.trailer.mp4', scifi).downloads = 30
   addFile(alice, '2001-a-space-odyssey-poster.jpg', scifi)
   addFile(alice, 'halloween-1978-notes.txt', slasher)
-  addFile(alice, 'kind-of-blue.flac', jazz)
+  addFile(alice, 'kind-of-blue.flac', jazz).downloads = 12
   addFile(alice, 'take-five.mp3', jazz)
   addFile(alice, 'study-mix-vol3.mp3', lofi)
   addFile(alice, 'kyoto-temple.jpg', japan, 16952)
@@ -205,6 +205,25 @@ async function web(req, res, path, q) {
     f.name = b.name; f.public = b.public === 1 || b.public === true; f.password = b.password || '' // empty removes it
     f.hideRelated = b.hide_related === 1 || b.hide_related === true
     return json(res, 200, { success: true, message: 'Folder updated successfully' })
+  }
+  if (path === '/api/account/stats') {
+    // Same layout as Filester's dashboard stats; downloads come from token requests.
+    const files = live(u)
+    const top = (list) => [...list].filter((f) => f.downloads > 0).sort((a, b) => b.downloads - a.downloads).slice(0, 10)
+      .map((f) => ({ id: f.id, slug: f.slug, name: f.name, type: f.type, downloads: f.downloads }))
+    const total = files.reduce((n, f) => n + f.downloads, 0)
+    const days = Array.from({ length: 30 }, (_, i) => ({ day: new Date(Date.now() - (29 - i) * DAY).toISOString().slice(0, 10), downloads: i === 29 ? total : (i * 7) % 5 }))
+    const heatmap = Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => (d === 1 && h === 14 ? 6 : (d + h) % 9 === 0 ? 2 : 0)))
+    if (breaks.has('stats')) return json(res, 200, { totals: 42, sparkline: [] })
+    return json(res, 200, {
+      totals: { d24: total, d7: total + 9, d30: total + 40 },
+      sparkline: days,
+      trending_files: { '24h': top(files), '7d': top(files), '30d': top(files) },
+      trending_folders: { '24h': [], '7d': [], '30d': [] },
+      movers_files: [], cooling_files: [], movers_folders: [], cooling_folders: [],
+      alltime_files: top(files), most_viewed: [], alltime_folders: [],
+      heatmap, data_since: new Date(Date.now() - 40 * DAY).toISOString().slice(0, 10), generated: iso(Date.now()),
+    })
   }
   if (path === '/api/manager/data') {
     // Real Filester builds the tree from parent links and returns nothing at all when a folder's parent is missing.
