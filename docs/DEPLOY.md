@@ -76,6 +76,25 @@ npx wrangler secret put ALLOWED_USERS     # e.g. alice,bob
 
 Delete the secret to make the app public again. Removing a name signs that person out on their next request.
 
+## 2d. Optional: bot check on sign-in (Cloudflare Turnstile)
+
+Useful once the app is public. Off unless both values are set.
+
+1. Cloudflare dashboard → **Turnstile** → **Add widget**. Hostname `fs.snippface.vip` (add `localhost`
+   too if you want it in local dev), widget mode **Managed**.
+2. Copy the **site key** and **secret key**, then:
+
+```bash
+npx wrangler secret put TURNSTILE_SECRET           # the secret key
+```
+
+and add the site key as a plain-text variable: **filester-navigator → Settings → Variables and Secrets →
+Add → Text**, name `TURNSTILE_SITE_KEY`. (Or put `"TURNSTILE_SITE_KEY": "0x…"` under `vars` in
+`wrangler.jsonc`; it's public.)
+
+The sign-in button stays disabled until the check passes. The token is checked on the server before
+the password is sent to Filester. To turn it off again, delete either value.
+
 ## 3. Backups (each user's own R2 bucket)
 
 Nothing to set up on the Worker. Each user turns backups on in **Settings → Backups**:
@@ -123,6 +142,15 @@ filester.me sits behind DDoS-Guard, which may block traffic coming from Cloudfla
 - Check the Worker logs: **filester-navigator** → **Logs** (observability is enabled in `wrangler.jsonc`).
 - Try a Filester mirror domain (listed at https://filester.me/proxy) by setting the plain-text vars
   `FILESTER_WEB_ORIGIN` and `FILESTER_API_ORIGIN` under **Settings → Variables and Secrets**.
+
+## 6. If something stops working: Settings → Filester connection
+
+Filester has no stable public contract for most of what this app uses, so it can change without notice.
+The app checks every response for the fields it reads. When one changes you'll see
+*“Filester changed how … responds”*, and the affected feature stops instead of acting on wrong data.
+**Settings → Filester connection → Check connection** runs read-only checks of every endpoint
+(it never asks for a download link, because Filester counts those as downloads). It shows which ones work,
+which changed, and which are down or rate-limited.
 
 ## Optional hardening
 

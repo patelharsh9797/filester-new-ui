@@ -9,9 +9,8 @@ import { useToast } from './toast'
 import { useTasks } from './tasks'
 import { FolderPickerDialog } from '../components/FolderPicker'
 import { FolderFormDialog, type FolderFormValues } from '../components/FolderForm'
-import { formatBytes, slugOf } from '../lib/format'
+import { formatBytes, plural, slugOf } from '../lib/format'
 
-const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
 
 /** All mutating actions, wired to dialogs, toasts and cache invalidation. */
 export function useActions() {

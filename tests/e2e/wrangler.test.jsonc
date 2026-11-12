@@ -1,0 +1,11 @@
+// Wrangler config used only by the end-to-end tests (FSNAV_WRANGLER_CONFIG).
+// Same Worker as ../../wrangler.jsonc but no custom domain; the .dev.vars next to
+// this file points every upstream call at the local mock servers.
+{
+  "name": "filester-navigator-test",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "@tanstack/react-start/server-entry",
+  "kv_namespaces": [{ "binding": "STORE" }],
+  "vars": { "BACKUP_DAILY_CAP_GB": "50" }
+}

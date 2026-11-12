@@ -18,6 +18,8 @@ Personal-use tool. It runs on Cloudflare Workers and talks to Filester's own API
 - 🧬 **Duplicate protection.** Uploads skip files already in the destination folder (same name and size), with options to skip by name only or upload everything. A Duplicates page finds same-named files within a folder and deletes the extra copies, keeping the oldest, newest or most-downloaded one.
 - 📱 **Installable app (PWA).** Install it on Android, iPhone/iPad or desktop to get its own icon and a full-screen window. A one-time popup after sign-in offers to install (Chrome/Edge show their install dialog; iOS gets Add to Home Screen steps), and Settings has the same option. The service worker caches only the app's own code and icons, never your files or API responses, and shows an offline page when there's no connection.
 - ✏️ **Editing.** Rename files and folders, move with a searchable folder picker, change public or private, delete.
+- 🩺 **Filester change detection.** Every Filester response the app relies on is checked for the fields it reads. If Filester changes a format, you get a clear “Filester changed how … responds” message instead of empty pages or wrong data. **Settings → Filester connection** runs read-only checks of every endpoint and shows what works, what changed and what's down.
+- 🤖 **Optional bot check.** Cloudflare Turnstile on the sign-in form for public deploys; it's off unless you set its keys.
 - 🔐 **Password safeguard.** Editing a password-protected folder can't drop its password by accident. Filester's own endpoint does this when the password field is blank.
 
 See [`docs/API.md`](docs/API.md) for the full API reference and [`docs/SITE-AUDIT.md`](docs/SITE-AUDIT.md) for the audit of the current site.
@@ -75,11 +77,36 @@ src/server/s3.server.ts        minimal R2 (S3 API) client, SigV4
 src/server/auth.functions.ts   server functions: login, logout, getSession
 src/server/session.server.ts   encrypted session cookie
 src/server/filester.server.ts  Filester login + proxy logic
+src/server/turnstile.server.ts optional Turnstile check on sign-in
+src/lib/shape.ts               checks Filester responses (“Filester changed …” errors)
 src/lib/*                      API client, folder index, search, uploader
 src/state/*, src/components/*, src/pages/*   UI
 docs/                          API reference, site audit, deploy guide
+tests/unit/                    Vitest unit tests (search, folder index, expiry, crypto, keys…)
+tests/e2e/                     Playwright tests against the real Worker build
+tests/mock/filester-mock.mjs   fake Filester (with its quirks) used by the e2e tests
+.github/workflows/ci.yml       CI: typecheck, lint, unit, build, e2e on every push
 ```
 
 ## Scripts
 
-`npm run dev` · `npm run build` · `npm run deploy` · `npm run lint` · `npm run typecheck` · `npm run cf-typegen`
+`npm run dev` · `npm run build` · `npm run deploy` · `npm run lint` · `npm run typecheck` · `npm run cf-typegen` · `npm test` · `npm run build:test` · `npm run test:e2e`
+
+## Tests
+
+Nothing in the test suite touches a real Filester account or R2 bucket.
+
+- **Unit** (`npm test`, Vitest): search ranking, CSV parsing, the folder index (including Filester's
+  deleted-file counts), duplicates, expiry estimates, response-shape checks, R2 credential validation,
+  encryption (and that a stored record can't be decrypted for another user), daily usage, S3 key encoding.
+- **End-to-end** (`npm run build:test && npm run test:e2e`, Playwright): the real Worker build
+  (`vite preview` runs it in workerd) against `tests/mock/filester-mock.mjs`, a fake Filester that copies
+  the real quirks (deleted files still counted, orphaned subfolders, password wiped by an empty edit, a
+  download token counts as a download…), and [moto](https://github.com/getmoto/moto) as the R2 bucket.
+  It covers sign-in (and Turnstile), search, bulk move, delete and hide-related, uploads and duplicates,
+  expiring files, backups (multipart, byte-for-byte checked, isolated between users), what users see when
+  Filester changes a format, and the PWA files.
+  Needs `pip install "moto[server]"` and `npx playwright install chromium` once. The test build reads
+  `tests/e2e/wrangler.test.jsonc` and its `.dev.vars`, which hold test-only values.
+- **CI**: `.github/workflows/ci.yml` runs all of it on every push and pull request.
+

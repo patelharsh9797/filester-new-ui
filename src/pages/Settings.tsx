@@ -1,6 +1,7 @@
 import { Check, Download, ExternalLink, LogOut, Share, Smartphone, SquarePlus } from 'lucide-react'
 import { usePwaInstall } from '../lib/pwa'
 import { BackupSetup } from '../components/BackupSetup'
+import { ConnectionCheck } from '../components/ConnectionCheck'
 import { useSession, useSignOut } from '../state/session'
 import { useAccount, useLibrary } from '../lib/library'
 import { formatBytes } from '../lib/format'
@@ -46,6 +47,8 @@ export function SettingsPage() {
       </div>
 
       <BackupSetup />
+
+      <ConnectionCheck />
 
       <section className="card p-4 space-y-3">
         <div className="flex items-center gap-3">

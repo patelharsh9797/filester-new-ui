@@ -5,7 +5,8 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist', '.output', '.wrangler', 'src/routeTree.gen.ts', 'worker-configuration.d.ts'] },
+  { ignores: ['dist', '.output', '.wrangler', 'src/routeTree.gen.ts', 'worker-configuration.d.ts', 'test-results', 'playwright-report'] },
+  { files: ['tests/**/*.{ts,mjs}'], languageOptions: { globals: globals.node } },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],

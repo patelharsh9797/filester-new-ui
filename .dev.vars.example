@@ -5,6 +5,10 @@ CREDENTIALS_SECRET="replace-with-another-32-plus-random-characters"
 # Optional: restrict sign-in to these Filester usernames (comma-separated). Unset = public.
 # ALLOWED_USERS="your-filester-username"
 
+# Optional: Cloudflare Turnstile on sign-in (both needed). Test keys that always pass:
+# TURNSTILE_SITE_KEY="1x00000000000000000000AA"
+# TURNSTILE_SECRET="1x0000000000000000000000000000000AA"
+
 # Optional: use a Filester mirror instead of the default origins.
 # FILESTER_WEB_ORIGIN="https://filester.me"
 # FILESTER_API_ORIGIN="https://u1.filester.me"

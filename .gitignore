@@ -34,3 +34,6 @@ dist-ssr
 .output
 .tanstack
 !.dev.vars.example
+!tests/e2e/.dev.vars
+test-results
+playwright-report

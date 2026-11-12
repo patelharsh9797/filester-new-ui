@@ -24,8 +24,8 @@ const decodeXml = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').r
 const escXml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 // S3 SigV4 needs RFC 3986 encoding: encodeURIComponent leaves !'()* alone, which would
 // make the signed path differ from the sent one for names like "photo (1).jpg".
-const rfc3986 = (s: string) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase())
-const encKey = (key: string) => key.split('/').map(rfc3986).join('/')
+export const rfc3986 = (s: string) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase())
+export const encKey = (key: string) => key.split('/').map(rfc3986).join('/')
 
 export function s3(cfg: R2Config) {
   if (!ACCOUNT_ID_RE.test(cfg.accountId) || !BUCKET_RE.test(cfg.bucket)) throw new S3Error('Invalid bucket settings', 400, 'BadConfig')

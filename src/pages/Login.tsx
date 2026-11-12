@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
-import { useRouter } from '@tanstack/react-router'
+import { useLoaderData, useRouter } from '@tanstack/react-router'
 import { ExternalLink, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
 import { login } from '../server/auth.functions'
 import { FolderIcon } from '../components/icons'
+import { Turnstile } from '../components/Turnstile'
 
 export function LoginPage() {
   const router = useRouter()
+  const { turnstileSiteKey } = useLoaderData({ from: '/login' })
+  const [human, setHuman] = useState('')
+  const [humanReset, setHumanReset] = useState(0)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
@@ -24,7 +28,7 @@ export function LoginPage() {
     setBusy(true)
     setError('')
     try {
-      const r = await login({ data: { username, password, code: code || undefined, apiKey: apiKey || undefined } })
+      const r = await login({ data: { username, password, code: code || undefined, apiKey: apiKey || undefined, turnstile: human || undefined } })
       if (r.status === 'needs-2fa') setStep('2fa')
       else if (r.status === 'needs-api-key') setStep('api-key')
       else if (r.status === 'error') setError(r.message)
@@ -36,6 +40,8 @@ export function LoginPage() {
       setError((err as Error).message)
     } finally {
       setBusy(false)
+      // Turnstile tokens are single-use; get a fresh one for the next step or retry.
+      if (turnstileSiteKey) setHumanReset((n) => n + 1)
     }
   }
 
@@ -73,8 +79,9 @@ export function LoginPage() {
               <input className="input font-mono" placeholder="API key" value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoFocus required />
             </div>
           )}
+          {turnstileSiteKey && <Turnstile siteKey={turnstileSiteKey} onToken={setHuman} resetKey={humanReset} onError={setError} />}
           {error && <p className="text-sm text-danger">{error}</p>}
-          <button className="btn-primary w-full" disabled={busy || !ready}>
+          <button className="btn-primary w-full" disabled={busy || !ready || (!!turnstileSiteKey && !human)}>
             {busy ? <Loader2 className="size-4 animate-spin" /> : step === 'api-key' && <KeyRound className="size-4" />}
             {step === 'credentials' ? 'Sign in' : 'Continue'}
           </button>

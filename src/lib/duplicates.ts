@@ -16,33 +16,36 @@ export interface DuplicateGroup {
 }
 
 /** Files with the same name (case-insensitive) in the same folder. */
+export function findDuplicates(files: FileRow[]): DuplicateGroup[] {
+  const map = new Map<string, FileRow[]>()
+  for (const f of files) {
+    const key = `${f.folder_id ?? 'root'}\u0000${f.name.toLowerCase()}`
+    const list = map.get(key)
+    if (list) list.push(f)
+    else map.set(key, [f])
+  }
+  const out: DuplicateGroup[] = []
+  for (const [key, list] of map) {
+    if (list.length < 2) continue
+    const copies = [...list].sort((a, b) => a.id - b.id)
+    const largest = Math.max(...copies.map((c) => c.size))
+    out.push({
+      key,
+      name: copies[0].name,
+      folderId: copies[0].folder_id,
+      folderPath: copies[0].folderPath,
+      copies,
+      identical: copies.every((c) => c.size === copies[0].size),
+      extraBytes: copies.reduce((n, c) => n + c.size, 0) - largest,
+    })
+  }
+  return out.sort((a, b) => a.folderPath.localeCompare(b.folderPath, undefined, { numeric: true }) || a.name.localeCompare(b.name, undefined, { numeric: true }))
+}
+
+/** Duplicate groups for the signed-in library. */
 export function useDuplicates() {
   const lib = useLibrary()
-  const groups = useMemo(() => {
-    const map = new Map<string, FileRow[]>()
-    for (const f of lib.files) {
-      const key = `${f.folder_id ?? 'root'}\u0000${f.name.toLowerCase()}`
-      const list = map.get(key)
-      if (list) list.push(f)
-      else map.set(key, [f])
-    }
-    const out: DuplicateGroup[] = []
-    for (const [key, list] of map) {
-      if (list.length < 2) continue
-      const copies = [...list].sort((a, b) => a.id - b.id)
-      const largest = Math.max(...copies.map((c) => c.size))
-      out.push({
-        key,
-        name: copies[0].name,
-        folderId: copies[0].folder_id,
-        folderPath: copies[0].folderPath,
-        copies,
-        identical: copies.every((c) => c.size === copies[0].size),
-        extraBytes: copies.reduce((n, c) => n + c.size, 0) - largest,
-      })
-    }
-    return out.sort((a, b) => a.folderPath.localeCompare(b.folderPath, undefined, { numeric: true }) || a.name.localeCompare(b.name, undefined, { numeric: true }))
-  }, [lib.files])
+  const groups = useMemo(() => findDuplicates(lib.files), [lib.files])
 
   const byFolder = useMemo(() => {
     const m = new Map<string, number>()

@@ -1,6 +1,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { clearSession, isAllowedUser, jwtExpiry, readSession, writeSession } from './session.server'
 import { filesterLogin, filesterUserId, verifyApiKey } from './filester.server'
+import { turnstileSiteKey, verifyTurnstile } from './turnstile.server'
+
+/** Public settings for the sign-in page. */
+export const getLoginConfig = createServerFn({ method: 'GET' }).handler(async () => ({ turnstileSiteKey: turnstileSiteKey() }))
 
 /** Who is signed in (never returns the token or API key to the browser). */
 export const getSession = createServerFn({ method: 'GET' }).handler(async () => {
@@ -21,7 +25,7 @@ export const login = createServerFn({ method: 'POST' })
     const username = str(d.username, 64).trim()
     const password = str(d.password, 256)
     if (!username || !password) throw new Error('Username and password are required')
-    return { username, password, code: str(d.code, 16).trim() || undefined, apiKey: str(d.apiKey, 128).trim() || undefined }
+    return { username, password, code: str(d.code, 16).trim() || undefined, apiKey: str(d.apiKey, 128).trim() || undefined, turnstile: str(d.turnstile, 2048) || undefined }
   })
   .handler(async ({ data }): Promise<LoginResponse> => {
     // If the owner set an allowlist, refuse anyone else *before* their password is
@@ -29,6 +33,9 @@ export const login = createServerFn({ method: 'POST' })
     if (!isAllowedUser(data.username)) {
       return { status: 'error', message: 'This is a private app. Your Filester account isn’t allowed to sign in here.' }
     }
+    // Bot check (when enabled) also happens before anything is sent to Filester.
+    const human = await verifyTurnstile(data.turnstile)
+    if (!human.ok) return { status: 'error', message: human.message }
     const r = await filesterLogin(data.username, data.password, data.code)
     if (!r.ok) return r.requires2fa ? { status: 'needs-2fa' } : { status: 'error', message: r.message }
 

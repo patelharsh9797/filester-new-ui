@@ -8,7 +8,8 @@ export default defineConfig({
   server: { port: 3000 },
   resolve: { tsconfigPaths: true },
   plugins: [
-    cloudflare({ viteEnvironment: { name: 'ssr' } }),
+    // FSNAV_WRANGLER_CONFIG lets the e2e tests use tests/e2e/wrangler.test.jsonc (and its .dev.vars).
+    cloudflare({ viteEnvironment: { name: 'ssr' }, configPath: process.env.FSNAV_WRANGLER_CONFIG }),
     tanstackStart(),
     viteReact(),
     tailwindcss(),

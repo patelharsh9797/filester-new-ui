@@ -21,4 +21,5 @@
   //   SESSION_SECRET     – 32+ random characters, encrypts the login cookie.
   //   CREDENTIALS_SECRET – 32+ random characters, encrypts users' stored R2 keys.
   //   ALLOWED_USERS      – optional: Filester usernames allowed to sign in (unset = public).
+  //   TURNSTILE_SECRET   – optional: Turnstile secret key; with the TURNSTILE_SITE_KEY var, adds a bot check to sign-in.
 }

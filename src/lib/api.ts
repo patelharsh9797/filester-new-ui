@@ -1,4 +1,5 @@
 import { parseCsv } from './csv'
+import { FilesterChangedError, SHAPES, expectColumns, expectList, expectShape } from './shape'
 import type { Account, FileInfo, FileItem, Folder, FolderInfo, Pagination } from './types'
 
 export class ApiError extends Error {
@@ -27,6 +28,8 @@ async function request<T>(base: Base, path: string, init: RequestInit = {}): Pro
   try {
     data = text ? JSON.parse(text) : null
   } catch {
+    // A web page where JSON was expected: the endpoint moved or changed.
+    if (res.ok) throw new FilesterChangedError(path.split('?')[0], 'got a web page instead of data')
     data = { message: text.slice(0, 200) }
   }
   const d = data as { success?: boolean; message?: string } | null
@@ -71,12 +74,14 @@ export async function getFileListing(onProgress?: (loaded: number, total: number
     return await getFromExport()
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) throw e
+    // Changed export format: fall back to the API, but keep the reason visible.
     const files = await getAllFiles(onProgress)
     return { files, activity: null, source: 'api', exportError: (e as Error).message }
   }
 }
 
-async function getFromExport(): Promise<FileListing> {
+/** The CSV export alone (no API fallback). */
+export async function getFromExport(): Promise<FileListing> {
   const res = await fetch('/api/fs/web/files/export.csv', { credentials: 'same-origin' })
   if (res.status === 401) {
     onUnauthorized?.()
@@ -89,7 +94,7 @@ async function getFromExport(): Promise<FileListing> {
     throw new ApiError(message, res.status)
   }
   const rows = parseCsv(text)
-  if (rows.length && !('slug' in rows[0] && 'size_bytes' in rows[0])) throw new ApiError('Unexpected export format', 502)
+  expectColumns('files/export.csv', rows[0])
   const files: FileItem[] = []
   const activity = new Map<string, FileActivity>()
   for (const r of rows) {
@@ -121,19 +126,22 @@ const post = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.strin
 // ---------------------------------------------------------------- read
 
 export async function getAccount() {
-  return (await request<{ data: Account }>('v1', 'account')).data
+  return expectShape<Account>('v1/account', (await request<{ data: unknown }>('v1', 'account')).data, SHAPES.account)
 }
 
 export async function getFolders() {
-  return (await request<{ data: Folder[] | null }>('v1', 'folders')).data ?? []
+  return expectList<Folder>('v1/folders', (await request<{ data: unknown }>('v1', 'folders')).data, SHAPES.folder)
 }
 
 export async function getFilesPage(page: number, perPage = 100, opts: { folder?: string; search?: string } = {}) {
   const q = new URLSearchParams({ page: String(page), per_page: String(perPage) })
   if (opts.folder) q.set('folder', opts.folder)
   if (opts.search) q.set('search', opts.search)
-  const r = await request<{ data: FileItem[] | null; pagination: Pagination }>('v1', `files?${q}`)
-  return { files: r.data ?? [], pagination: r.pagination }
+  const r = await request<{ data: unknown; pagination: unknown }>('v1', `files?${q}`)
+  return {
+    files: expectList<FileItem>('v1/files', r.data, SHAPES.file),
+    pagination: expectShape<Pagination>('v1/files', r.pagination, SHAPES.pagination),
+  }
 }
 
 /** Load every file in the account (100 per request, 4 requests in flight). */
@@ -152,12 +160,13 @@ export async function getAllFiles(onProgress?: (loaded: number, total: number) =
   return all.concat(results.flat())
 }
 
-export function getFileInfo(slug: string) {
-  return request<FileInfo>('web', `file/info?id=${encodeURIComponent(slug)}`)
+export async function getFileInfo(slug: string) {
+  return expectShape<FileInfo>('file/info', await request('web', `file/info?id=${encodeURIComponent(slug)}`), SHAPES.fileInfo)
 }
 
-export function getFolderInfo(id: string) {
-  return request<FolderInfo>('web', `folder/info?id=${encodeURIComponent(id)}`)
+export async function getFolderInfo(id: string) {
+  // Editing a folder re-sends its password state, so a changed shape here must stop edits.
+  return expectShape<FolderInfo>('folder/info', await request('web', `folder/info?id=${encodeURIComponent(id)}`), SHAPES.folderInfo)
 }
 
 // ---------------------------------------------------------------- folders
@@ -194,7 +203,7 @@ export async function getFolderFlags(): Promise<Map<string, FolderFlags>> {
       walk(f.Subfolders)
     }
   }
-  walk(d.allFoldersHierarchical)
+  walk(expectList<Raw>('manager/data', d.allFoldersHierarchical, SHAPES.managerFolder))
   return map
 }
 

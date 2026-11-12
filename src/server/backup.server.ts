@@ -77,9 +77,9 @@ export { BackupError }
 
 /** filester-navigator/<slug>/<file name> */
 // Control characters, slashes and backslashes become "_" so the name stays one path segment.
-const safeName = (name: string) => [...name].map((c) => (c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127 || c === '/' || c === '\\' ? '_' : c)).join('').slice(0, 200) || 'file'
-const keyFor = (slug: string, name: string) => `${PREFIX}${slug}/${safeName(name)}`
-const parseKey = (key: string) => {
+export const safeName = (name: string) => [...name].map((c) => (c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127 || c === '/' || c === '\\' ? '_' : c)).join('').slice(0, 200) || 'file'
+export const keyFor = (slug: string, name: string) => `${PREFIX}${slug}/${safeName(name)}`
+export const parseKey = (key: string) => {
   const rest = key.slice(PREFIX.length)
   const i = rest.indexOf('/')
   return i < 0 ? { slug: rest, name: rest } : { slug: rest.slice(0, i), name: rest.slice(i + 1) }
