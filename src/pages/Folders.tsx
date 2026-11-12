@@ -207,7 +207,7 @@ export function FoldersPage() {
                           {f.children.length > 0 && <span className="ml-1 shrink-0 text-[11px] text-faint border border-line rounded px-1">{f.children.length} sub</span>}
                         </Link>
                       </td>
-                      <td className="td text-right tabular text-muted" title={`${f.file_count} directly inside`}>{f.totalFiles}</td>
+                      <td className="td text-right tabular text-muted" title={`${f.directFiles} directly inside${f.deletedFiles ? ` · Filester also counts ${f.deletedFiles} deleted` : ''}`}>{f.totalFiles}</td>
                       <td className="td text-right tabular text-muted whitespace-nowrap">{lib.filesLoading ? '…' : formatBytes(f.totalSize)}</td>
                       <td className="td hidden sm:table-cell">
                         <span className="inline-flex items-center gap-1.5 text-xs text-muted">

@@ -87,6 +87,13 @@ export interface FolderNode extends Folder {
   children: string[]
   /** Size of files directly inside this folder */
   directSize: number
+  /** Files directly inside, counted from the real file list */
+  directFiles: number
+  /**
+   * Files Filester still counts for this folder that no longer exist. Filester's
+   * per-folder counter keeps deleted files (yours or its inactivity cleanup).
+   */
+  deletedFiles: number
   /** Files / size including every nested subfolder */
   totalFiles: number
   totalSize: number

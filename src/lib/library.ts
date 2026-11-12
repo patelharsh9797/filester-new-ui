@@ -13,12 +13,16 @@ export interface LibraryIndex {
   rootFiles: FileRow[]
 }
 
-export function buildIndex(rawFolders: Folder[], rawFiles: FileItem[]): LibraryIndex {
+/**
+ * @param filesLoaded false while the file list is still loading: folder counts then fall
+ * back to Filester's own counter (which also counts deleted files) until real data arrives.
+ */
+export function buildIndex(rawFolders: Folder[], rawFiles: FileItem[], filesLoaded = true): LibraryIndex {
   const byId = new Map<string, FolderNode>()
   for (const f of rawFolders) {
     byId.set(f.id, {
       ...f, path: [], pathIds: [], pathText: '', depth: 0, children: [],
-      directSize: 0, totalFiles: 0, totalSize: 0, totalFolders: 0, lastActivity: f.created_at,
+      directSize: 0, directFiles: 0, deletedFiles: 0, totalFiles: 0, totalSize: 0, totalFolders: 0, lastActivity: f.created_at,
     })
   }
   for (const node of byId.values()) {
@@ -69,7 +73,11 @@ export function buildIndex(rawFolders: Folder[], rawFiles: FileItem[]): LibraryI
   // Recursive totals (post-order)
   const visit = (node: FolderNode, stack: Set<string>): void => {
     stack.add(node.id)
-    node.totalFiles = filesByFolder.get(node.id)?.length ?? node.file_count
+    // Count real files. Filester's file_count also includes deleted files, so it's only a
+    // placeholder until the file list has loaded.
+    node.directFiles = filesLoaded ? (filesByFolder.get(node.id)?.length ?? 0) : node.file_count
+    node.deletedFiles = filesLoaded ? Math.max(0, node.file_count - node.directFiles) : 0
+    node.totalFiles = node.directFiles
     node.totalSize = node.directSize
     node.totalFolders = 0
     for (const cid of node.children) {
@@ -108,7 +116,7 @@ export function useLibrary() {
     staleTime: 5 * 60_000,
   })
   const index = useMemo(
-    () => buildIndex(foldersQ.data ?? [], filesQ.data?.files ?? []),
+    () => buildIndex(foldersQ.data ?? [], filesQ.data?.files ?? [], !!filesQ.data),
     [foldersQ.data, filesQ.data],
   )
   return {

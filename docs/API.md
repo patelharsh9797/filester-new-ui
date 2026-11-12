@@ -127,6 +127,7 @@ Seen in the site's JavaScript *(from JS only, not exercised)*:
 ## Policies worth knowing
 - Files are deleted after inactivity. The **FAQ says 35 days without downloads**; the **API docs say 45 days without views or downloads**. `last_viewed` / `last_downloaded` per file are available in `/api/files/export.csv`, and both are set to the upload time on upload.
 - Private folders can't have a password.
+- `file_count` from `GET /api/v1/folders` **includes deleted files** (deleted by the user or by the inactivity cleanup), so it can be higher than what's actually there. The app counts files from the real file list instead and shows the difference as "N deleted".
 - **Deleting a folder does not delete its subfolders.** They (and their files) survive with a missing parent: the REST API lists them at the top level, and Filester's own file-manager data (`/api/manager/data`) then returns **no folders at all** for the account until those orphans are deleted or moved.
 - The account setting **Default Hide Related Files** only applies to folders created after it is turned on; existing folders keep their own `hide_related`. There is no bulk endpoint — change existing folders with `POST /api/folder/edit` one by one (re-sending the password for protected folders, or it is removed).
 

@@ -88,7 +88,12 @@ export function FolderPage() {
           <p className="text-sm text-muted flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
             {folder && (folder.public ? <span className="inline-flex items-center gap-1"><Globe className="size-3.5" /> Public</span> : <span className="inline-flex items-center gap-1"><Lock className="size-3.5" /> Private</span>)}
             {folder ? <>
-              <span>{folder.file_count} {folder.file_count === 1 ? 'file' : 'files'} here · {folder.totalFiles} total</span>
+              <span>{folder.directFiles} {folder.directFiles === 1 ? 'file' : 'files'} here · {folder.totalFiles} total</span>
+              {folder.deletedFiles > 0 && (
+                <span className="text-faint" title="Filester's own counter still includes files that were deleted — by you or by its inactivity cleanup. They no longer exist and can't be listed or recovered.">
+                  {folder.deletedFiles} deleted (Filester still counts {folder.deletedFiles === 1 ? 'it' : 'them'})
+                </span>
+              )}
               <span>{folder.children.length} {folder.children.length === 1 ? 'subfolder' : 'subfolders'}{folder.totalFolders > folder.children.length ? ` (${folder.totalFolders} nested)` : ''}</span>
               <span>{formatBytes(folder.totalSize)}</span>
               <span>Created {formatDate(folder.created_at)}</span>
@@ -169,7 +174,7 @@ export function FolderPage() {
         </div>
         {lib.filesLoading ? <Skeleton rows={5} /> : (
           <FileTable files={files} showFolder={deep} query={fileQ} highlight={highlight} sorted={!!fileQ} defaultSort="name"
-            empty={fileQ ? `No files match “${fileQ}”.` : <>This folder has no files. <button className="text-accent-ink underline" onClick={() => openUpload(folder?.id ?? null)}>Upload some</button> or drop them anywhere on the page.</>} />
+            empty={fileQ ? `No files match “${fileQ}”.` : folder && folder.deletedFiles > 0 && !deep ? <>The {folder.deletedFiles} {folder.deletedFiles === 1 ? 'file' : 'files'} that were here {folder.deletedFiles === 1 ? 'was' : 'were'} deleted — most likely by Filester’s inactivity cleanup (files with no downloads for about 35 days). Deleted files can’t be recovered. <button className="text-accent-ink underline" onClick={() => openUpload(folder.id)}>Upload again</button> if you still have them.</> : <>This folder has no files. <button className="text-accent-ink underline" onClick={() => openUpload(folder?.id ?? null)}>Upload some</button> or drop them anywhere on the page.</>} />
         )}
       </section>
     </div>
