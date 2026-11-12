@@ -4,7 +4,9 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
-  "observability": { "enabled": true },
+  // No stored request logs (privacy). For live debugging use `npx wrangler tail`,
+  // or set this to true for a while (logs are kept a few days).
+  "observability": { "enabled": false },
   // Serve the app on your own domain. The zone (snippface.vip) must be on this
   // Cloudflare account; Cloudflare creates the DNS record and certificate.
   "routes": [{ "pattern": "fs.snippface.vip", "custom_domain": true }],

@@ -139,7 +139,9 @@ Then open **https://fs.snippface.vip** and sign in with your Filester username a
 
 filester.me sits behind DDoS-Guard, which may block traffic coming from Cloudflare's servers. That can only be checked after the first deploy. If it happens:
 
-- Check the Worker logs: **filester-navigator** → **Logs** (observability is enabled in `wrangler.jsonc`).
+- Watch requests live with `npx wrangler tail filester-navigator` while you reproduce the problem. Stored logs are off for privacy
+  (`observability.enabled: false` in `wrangler.jsonc`); to keep them for a while, set it to `true` and redeploy, and update the
+  privacy note in `src/components/PrivacyNote.tsx`, which currently tells users no logs are kept.
 - Try a Filester mirror domain (listed at https://filester.me/proxy) by setting the plain-text vars
   `FILESTER_WEB_ORIGIN` and `FILESTER_API_ORIGIN` under **Settings → Variables and Secrets**.
 

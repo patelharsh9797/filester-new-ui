@@ -2,7 +2,7 @@ import { ShieldCheck } from 'lucide-react'
 
 // One source of truth for what this app does with people's data. Keep it in step
 // with the code: session.server.ts (cookie), r2config.server.ts (KV), backup.server.ts,
-// filester.server.ts (proxy), wrangler.jsonc (observability logs), public/sw.js.
+// filester.server.ts (proxy), wrangler.jsonc (observability is off: no stored logs), public/sw.js.
 
 const PASSES = [
   <><b>Your password</b> goes to filester.me once, when you sign in. It isn't stored or logged.</>,
@@ -14,7 +14,7 @@ const PASSES = [
 const STORED = [
   <><b>In your browser:</b> an encrypted session cookie with your Filester session and API key, which page scripts can’t read. It lasts up to 30 days and is deleted when you sign out. Also a few preferences and the progress of unfinished backups so they can resume.</>,
   <><b>On this site’s server, only if you turn on backups:</b> your R2 keys, encrypted so they only decrypt for your account, and your backup settings. Disconnecting deletes them. There’s also a count of bytes you backed up today (for the daily limit), deleted after 2 days.</>,
-  <><b>Cloudflare request logs:</b> IP address, the addresses requested and the response codes, kept a few days for troubleshooting. Request contents (passwords, files) aren’t logged.</>,
+  <><b>No request logs are kept.</b> Like any web host, Cloudflare handles your connection to serve the site.</>,
 ]
 
 const NEVER = 'Never stored here: your files, your password, or your file list. No analytics, ads or trackers.'
