@@ -21,6 +21,7 @@ Personal-use tool. It runs on Cloudflare Workers and talks to Filester's own API
 - ✏️ **Editing.** Rename files and folders, move with a searchable folder picker, change public or private, delete.
 - 🩺 **Filester change detection.** Every Filester response the app relies on is checked for the fields it reads. If Filester changes a format, you get a clear “Filester changed how … responds” message instead of empty pages or wrong data. **Settings → Filester connection** runs read-only checks of every endpoint and shows what works, what changed and what's down.
 - 🤖 **Optional bot check.** Cloudflare Turnstile on the sign-in form for public deploys; it's off unless you set its keys.
+- 🛡 **Privacy note.** The sign-in page says in one line what happens to your password and files, and expands to the full list of what passes through the server and what's stored (and where). The same text is in Settings.
 - 🔐 **Password safeguard.** Editing a password-protected folder can't drop its password by accident. Filester's own endpoint does this when the password field is blank.
 
 See [`docs/API.md`](docs/API.md) for the full API reference and [`docs/SITE-AUDIT.md`](docs/SITE-AUDIT.md) for the audit of the current site.

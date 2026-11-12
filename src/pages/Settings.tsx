@@ -2,6 +2,7 @@ import { Check, Download, ExternalLink, LogOut, Share, Smartphone, SquarePlus } 
 import { usePwaInstall } from '../lib/pwa'
 import { BackupSetup } from '../components/BackupSetup'
 import { ConnectionCheck } from '../components/ConnectionCheck'
+import { PrivacyDetails } from '../components/PrivacyNote'
 import { useSession, useSignOut } from '../state/session'
 import { useAccount, useLibrary } from '../lib/library'
 import { formatBytes } from '../lib/format'
@@ -37,7 +38,7 @@ export function SettingsPage() {
         {row('Storage', a ? `${formatBytes(a.storage_used)} of ${formatBytes(a.storage_limit, 0)}` : '…')}
         {row('API requests today', a ? `${a.api_requests_today} (limit 1,000 / hour)` : '…')}
         {row('Session expires', exp ? new Date(exp * 1000).toLocaleString() : 'Unknown')}
-        {row('Credentials', <span className="text-muted">Encrypted in an HttpOnly cookie (not readable by page scripts)</span>)}
+        {row('Credentials', <span className="text-muted">Encrypted in an HttpOnly cookie (not readable by page scripts) · <a href="#privacy-h" className="underline">Privacy</a></span>)}
       </section>
 
       <div className="flex flex-wrap gap-2">
@@ -49,6 +50,8 @@ export function SettingsPage() {
       <BackupSetup />
 
       <ConnectionCheck />
+
+      <PrivacyDetails />
 
       <section className="card p-4 space-y-3">
         <div className="flex items-center gap-3">

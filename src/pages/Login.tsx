@@ -4,6 +4,7 @@ import { ExternalLink, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
 import { login } from '../server/auth.functions'
 import { FolderIcon } from '../components/icons'
 import { Turnstile } from '../components/Turnstile'
+import { PrivacySummary } from '../components/PrivacyNote'
 
 export function LoginPage() {
   const router = useRouter()
@@ -90,9 +91,7 @@ export function LoginPage() {
               Start over
             </button>
           )}
-          <p className="text-xs text-faint leading-relaxed">
-            Your password is sent once to filester.me to sign in and is never stored. The session is kept in an encrypted, HttpOnly cookie for up to 30 days.
-          </p>
+          <PrivacySummary turnstile={!!turnstileSiteKey} />
         </form>
         <p className="text-sm text-muted text-center mt-4">
           Don't have a Filester account?{' '}

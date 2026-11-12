@@ -63,3 +63,17 @@ test.describe('Turnstile (enabled in the test deploy)', () => {
     expect((await mockState(request)).logins).toBe(2)
   })
 })
+
+test('privacy note on sign-in expands to the full details, and is in Settings', async ({ page }) => {
+  await page.goto('/login')
+  await expect(page.getByText('Your password goes to filester.me once and is never stored.')).toBeVisible()
+  await expect(page.getByText('What’s stored on this site’s server')).toHaveCount(0)
+  await page.getByText('What’s stored?').click()
+  await expect(page.getByText(/Never stored here: your files, your password, or your file list/)).toBeVisible()
+  await expect(page.getByText(/Cloudflare Turnstile checks your browser/)).toBeVisible()
+
+  await signIn(page)
+  await page.goto('/settings')
+  await expect(page.getByRole('heading', { name: 'Privacy' })).toBeVisible()
+  await expect(page.getByText(/only if you turn on backups/)).toBeVisible()
+})
