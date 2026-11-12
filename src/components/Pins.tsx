@@ -39,7 +39,7 @@ export function SaveSearchButton({ page }: { page: SavedPage }) {
 
   const suggest = () => {
     const parts: string[] = []
-    if (search.q) parts.push(`“${search.q}”`)
+    if (search.q) parts.push(search.q.trim())
     if (search.kind) parts.push(KIND_LABELS[search.kind as FileKind] ?? search.kind)
     if (search.in) parts.push(search.in === 'root' ? 'Unfiled' : `in ${lib.byId.get(search.in)?.name ?? 'folder'}`)
     for (const [k, v] of Object.entries(search)) if (!['q', 'kind', 'in', ...VIEW_ONLY].includes(k)) parts.push(v)
@@ -47,7 +47,7 @@ export function SaveSearchButton({ page }: { page: SavedPage }) {
   }
 
   const save = async () => {
-    const name = await prompt({ title: 'Save search', label: `Name (shown in the sidebar; opens ${PAGE_NAME[page]} with these filters)`, initial: suggest(), confirmLabel: 'Save' })
+    const name = await prompt({ title: 'Save search', label: `Name (shown in the sidebar; opens ${PAGE_NAME[page]} with these filters)`, initial: suggest(), confirmLabel: 'Save', allowUnchanged: true })
     if (!name?.trim()) return
     pins.saveSearch(name, page, search)
     toast('success', `Saved “${name.trim()}” to the sidebar`)

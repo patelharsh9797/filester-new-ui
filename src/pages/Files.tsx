@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useUrlText } from '../lib/useUrlText'
 import { SaveSearchButton } from '../components/Pins'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Search, X } from 'lucide-react'
@@ -37,6 +38,7 @@ export function FilesPage() {
 
   const set = (k: 'q' | 'kind' | 'size' | 'age' | 'in', v: string | null) =>
     navigate({ search: (prev) => ({ ...prev, [k]: v || undefined }), replace: true })
+  const [qText, setQText, setQNow, flushQ] = useUrlText(q, (v) => set('q', v))
 
   const scopeIds = useMemo(() => {
     if (!where || where === 'root') return null
@@ -81,8 +83,8 @@ export function FilesPage() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-          <input autoFocus className="input pl-9 pr-9" placeholder="Search file names or folder paths…" value={q} onChange={(e) => set('q', e.target.value)} />
-          {q && <button className="absolute right-2 top-1/2 -translate-y-1/2 btn-icon size-6" onClick={() => set('q', null)} aria-label="Clear"><X className="size-3.5" /></button>}
+          <input autoFocus className="input pl-9 pr-9" placeholder="Search file names or folder paths…" value={qText} onBlur={flushQ} onChange={(e) => setQText(e.target.value)} />
+          {qText && <button className="absolute right-2 top-1/2 -translate-y-1/2 btn-icon size-6" onClick={() => setQNow('')} aria-label="Clear"><X className="size-3.5" /></button>}
         </div>
         <button className="btn min-w-0" onClick={pickScope}>
           <FolderIcon className="size-4" />

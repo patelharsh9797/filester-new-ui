@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useUrlText } from '../lib/useUrlText'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ChevronRight, Copy, Copy as CopyIcon, ExternalLink, FolderInput, FolderPlus, Globe, Home, Lock, Pencil, Search, Trash2, Upload, Pin, PinOff, X } from 'lucide-react'
 import { useLibrary } from '../lib/library'
@@ -54,6 +55,7 @@ export function FolderPage() {
 
   const setParam = (k: 'fq' | 'deep', v: string | null) =>
     navigate({ search: (prev) => ({ ...prev, [k]: v || undefined, file: undefined }), replace: true })
+  const [fqText, setFqText, setFqNow, flushFq] = useUrlText(fileQ, (v) => setParam('fq', v))
 
   if (lib.foldersLoading) return <div className="max-w-6xl mx-auto p-6"><Skeleton rows={6} /></div>
   if (!isRoot && !folder) {
@@ -173,8 +175,8 @@ export function FolderPage() {
           </label>
           <div className="relative ml-auto w-full sm:w-64">
             <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
-            <input className="input h-8 pl-8 pr-8 text-xs" placeholder={deep ? 'Search files in this tree…' : 'Search files in this folder…'} value={fileQ} onChange={(e) => setParam('fq', e.target.value)} />
-            {fileQ && <button className="absolute right-1.5 top-1/2 -translate-y-1/2 btn-icon size-6" onClick={() => setParam('fq', null)} aria-label="Clear"><X className="size-3" /></button>}
+            <input className="input h-8 pl-8 pr-8 text-xs" placeholder={deep ? 'Search files in this tree…' : 'Search files in this folder…'} value={fqText} onBlur={flushFq} onChange={(e) => setFqText(e.target.value)} />
+            {fqText && <button className="absolute right-1.5 top-1/2 -translate-y-1/2 btn-icon size-6" onClick={() => setFqNow('')} aria-label="Clear"><X className="size-3" /></button>}
           </div>
         </div>
         {lib.filesLoading ? <Skeleton rows={5} /> : (

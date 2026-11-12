@@ -58,7 +58,7 @@ export function cleanSearch(search: Record<string, unknown>): Record<string, str
 
 /** A readable default name for a search, e.g. “kyoto · Images”. */
 export function describeSearch(search: Record<string, string>): string {
-  const parts = [search.q && `“${search.q}”`, ...Object.entries(search).filter(([k]) => k !== 'q').map(([, v]) => v)].filter(Boolean)
+  const parts = [search.q?.trim(), ...Object.entries(search).filter(([k]) => k !== 'q').map(([, v]) => v)].filter(Boolean)
   return parts.join(' · ').slice(0, 60) || 'Saved search'
 }
 

@@ -63,7 +63,7 @@ export function useDialogs() {
       })
     }), [open])
 
-  const prompt = useCallback((o: { title: string; label: string; initial?: string; confirmLabel?: string; selectStem?: boolean }) =>
+  const prompt = useCallback((o: { title: string; label: string; initial?: string; confirmLabel?: string; selectStem?: boolean; allowUnchanged?: boolean }) =>
     new Promise<string | null>((resolve) => {
       open((close) => <PromptDialog {...o} onDone={(v) => { resolve(v); close() }} />)
     }), [open])
@@ -71,8 +71,8 @@ export function useDialogs() {
   return { confirm, prompt, open }
 }
 
-function PromptDialog({ title, label, initial = '', confirmLabel, selectStem, onDone }: {
-  title: string; label: string; initial?: string; confirmLabel?: string; selectStem?: boolean; onDone: (v: string | null) => void
+function PromptDialog({ title, label, initial = '', confirmLabel, selectStem, allowUnchanged, onDone }: {
+  title: string; label: string; initial?: string; confirmLabel?: string; selectStem?: boolean; allowUnchanged?: boolean; onDone: (v: string | null) => void
 }) {
   const [value, setValue] = useState(initial)
   const ref = useRef<HTMLInputElement>(null)
@@ -84,11 +84,13 @@ function PromptDialog({ title, label, initial = '', confirmLabel, selectStem, on
     if (selectStem && dot > 0) el.setSelectionRange(0, dot)
     else el.select()
   }, [initial, selectStem])
-  const submit = () => value.trim() && onDone(value.trim())
+  // Rename-style prompts need a change; others (e.g. a suggested name) can be accepted as is.
+  const unchanged = !allowUnchanged && value.trim() === initial
+  const submit = () => value.trim() && !unchanged && onDone(value.trim())
   return (
     <Modal title={title} onClose={() => onDone(null)} footer={<>
       <button className="btn" onClick={() => onDone(null)}>Cancel</button>
-      <button className="btn-primary" disabled={!value.trim() || value.trim() === initial} onClick={submit}>{confirmLabel ?? 'Save'}</button>
+      <button className="btn-primary" disabled={!value.trim() || unchanged} onClick={submit}>{confirmLabel ?? 'Save'}</button>
     </>}>
       <label className="block text-sm text-muted mb-1.5">{label}</label>
       <input ref={ref} className="input" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
