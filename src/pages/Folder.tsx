@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
-import { ChevronRight, Copy, Copy as CopyIcon, ExternalLink, FolderInput, FolderPlus, Globe, Home, Lock, Pencil, Search, Trash2, Upload, X } from 'lucide-react'
+import { ChevronRight, Copy, Copy as CopyIcon, ExternalLink, FolderInput, FolderPlus, Globe, Home, Lock, Pencil, Search, Trash2, Upload, Pin, PinOff, X } from 'lucide-react'
 import { useLibrary } from '../lib/library'
 import { useDuplicates } from '../lib/duplicates'
 import { searchItems } from '../lib/search'
@@ -12,6 +12,7 @@ import { Highlight } from '../components/Highlight'
 import { Menu } from '../components/Menu'
 import { useShell } from '../components/Layout'
 import { copyText, useActions } from '../state/actions'
+import { usePins } from '../state/pins'
 import { useToast } from '../state/toast'
 import { Skeleton } from './Overview'
 
@@ -21,6 +22,7 @@ export function FolderPage() {
   const lib = useLibrary()
   const dup = useDuplicates()
   const actions = useActions()
+  const pins = usePins()
   const toast = useToast()
   const navigate = useNavigate({ from: '/folders/$id' })
   const { openUpload } = useShell()
@@ -105,6 +107,9 @@ export function FolderPage() {
           <button className="btn-primary" onClick={() => openUpload(folder?.id ?? null)}><Upload className="size-4" /> Upload here</button>
           {folder && (
             <Menu label="Folder actions" items={[
+              pins.isPinned(folder.id)
+                ? { label: 'Unpin from sidebar', icon: <PinOff className="size-4" />, onClick: () => pins.unpin(folder.id) }
+                : { label: 'Pin to sidebar', icon: <Pin className="size-4" />, onClick: () => pins.togglePin(folder.id) },
               { label: 'Copy share link', icon: <Copy className="size-4" />, onClick: () => copyText(folderUrl(folder.id), toast), hidden: !folder.public },
               { label: 'Open on Filester', icon: <ExternalLink className="size-4" />, onClick: () => window.open(folderUrl(folder.id), '_blank', 'noreferrer') },
               'sep',

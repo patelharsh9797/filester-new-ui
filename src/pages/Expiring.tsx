@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { SaveSearchButton } from '../components/Pins'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { AlertTriangle, ArrowDown, ArrowUp, Check, Copy, DatabaseBackup, Download, ExternalLink, FolderInput, Info, Loader2, Search, Trash2, X } from 'lucide-react'
 import { LEVELS, RULES, useExpiring, useExpiryRule, type ExpiringFile, type ExpiryRule } from '../lib/expiry'
@@ -173,6 +174,7 @@ export function ExpiringPage() {
         {backupsOn && <select className="input w-auto" value={bf} onChange={(e) => set('backup', e.target.value === 'all' ? null : e.target.value)} aria-label="Backup state">
           {Object.entries(BACKUP_FILTERS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>}
+        <SaveSearchButton page="/expiring" />
         <span className="text-xs text-faint">{rows.length} files · {formatBytes(atRiskSize)}</span>
       </div>
 

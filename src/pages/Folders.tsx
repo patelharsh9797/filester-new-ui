@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { SaveSearchButton } from '../components/Pins'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, ChevronRight, Copy, ExternalLink, EyeOff, FolderInput, FolderPlus, Globe, KeyRound, List, ListTree, Lock, Pencil, Search, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronRight, Copy, ExternalLink, EyeOff, FolderInput, FolderPlus, Globe, KeyRound, List, ListTree, Lock, Pencil, Search, Trash2, Pin, PinOff, X } from 'lucide-react'
 import { useLibrary } from '../lib/library'
 import { useQuery } from '@tanstack/react-query'
 import { getFolderFlags } from '../lib/api'
@@ -11,6 +12,7 @@ import { FolderIcon } from '../components/icons'
 import { Highlight } from '../components/Highlight'
 import { Menu } from '../components/Menu'
 import { copyText, useActions } from '../state/actions'
+import { usePins } from '../state/pins'
 import { useToast } from '../state/toast'
 import { Skeleton } from './Overview'
 
@@ -21,6 +23,7 @@ type Show = 'all' | 'top' | 'empty' | 'nonempty'
 export function FoldersPage() {
   const lib = useLibrary()
   const actions = useActions()
+  const pins = usePins()
   const toast = useToast()
   const params = useSearch({ from: '/_app/folders/' })
   const navigate = useNavigate({ from: '/folders/' })
@@ -103,6 +106,9 @@ export function FoldersPage() {
   )
 
   const menuFor = (f: FolderNode) => [
+    pins.isPinned(f.id)
+      ? { label: 'Unpin from sidebar', icon: <PinOff className="size-4" />, onClick: () => pins.unpin(f.id) }
+      : { label: 'Pin to sidebar', icon: <Pin className="size-4" />, onClick: () => pins.togglePin(f.id) },
     { label: 'New subfolder', icon: <FolderPlus className="size-4" />, onClick: () => actions.newFolder(f.id) },
     { label: 'Copy share link', icon: <Copy className="size-4" />, onClick: () => copyText(folderUrl(f.id), toast), hidden: !f.public },
     { label: 'Open on Filester', icon: <ExternalLink className="size-4" />, onClick: () => window.open(folderUrl(f.id), '_blank', 'noreferrer') },
@@ -138,6 +144,7 @@ export function FoldersPage() {
           <button className={`h-8 px-2.5 rounded-md text-sm inline-flex items-center gap-1.5 ${view === 'list' ? 'bg-hover text-ink' : 'text-muted'}`} onClick={() => set('view', null)}><List className="size-4" /> List</button>
           <button className={`h-8 px-2.5 rounded-md text-sm inline-flex items-center gap-1.5 ${view === 'tree' ? 'bg-hover text-ink' : 'text-muted'}`} onClick={() => set('view', 'tree')}><ListTree className="size-4" /> Tree</button>
         </div>
+        <SaveSearchButton page="/folders" />
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         {chip('vis', 'all', 'Any visibility', vis)}

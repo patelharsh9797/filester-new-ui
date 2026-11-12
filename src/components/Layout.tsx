@@ -9,6 +9,7 @@ import { useBackups } from '../state/backups'
 import { useSession, useSignOut } from '../state/session'
 import { useActions } from '../state/actions'
 import { useOpenDialog } from '../state/dialogs'
+import { SidebarPins } from './Pins'
 import { FolderTree } from './FolderTree'
 import { SearchPalette } from './SearchPalette'
 import { UploadDialog, UploadDock } from './Uploads'
@@ -127,11 +128,12 @@ export function Layout() {
           <Loader2 className="size-3.5 animate-spin text-muted" aria-label={`${runningBackups} backups copying`} />
         ))}
       </nav>
-      <div className="mt-5 mb-1.5 px-4 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-faint">Folder tree</span>
-        <button className="text-[11px] text-faint hover:text-ink" onClick={() => actions.newFolder(null)}>+ New</button>
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto pb-3">
+      <div className="flex-1 min-h-0 overflow-y-auto pb-3 mt-4">
+        <SidebarPins onNavigate={() => setDrawer(false)} />
+        <div className="mt-3 mb-1.5 px-4 flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-faint">Folder tree</span>
+          <button className="text-[11px] text-faint hover:text-ink" onClick={() => actions.newFolder(null)}>+ New</button>
+        </div>
         <Link to="/folders/$id" params={{ id: 'root' }} className="ml-6 mr-1 flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px]"
           activeOptions={{ includeSearch: false }}
           activeProps={{ className: 'bg-accent-soft text-accent-ink font-medium' }} inactiveProps={{ className: 'text-muted hover:bg-hover hover:text-ink' }}>

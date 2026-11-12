@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { SaveSearchButton } from '../components/Pins'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Search, X } from 'lucide-react'
 import { useLibrary } from '../lib/library'
@@ -94,6 +95,7 @@ export function FilesPage() {
         <select className="input w-auto" value={age} onChange={(e) => set('age', e.target.value === 'any' ? null : e.target.value)}>
           {Object.entries(AGES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
+        <SaveSearchButton page="/files" />
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">

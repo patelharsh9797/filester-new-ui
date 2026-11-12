@@ -10,6 +10,7 @@ Personal-use tool. It runs on Cloudflare Workers and talks to Filester's own API
 - 📁 **`/folders` page.** Every folder in one sortable table with full path, recursive file count, size, visibility and last activity. Also has a tree view, filters, and bulk move and delete.
 - 📄 **`/files` page.** Every file, searchable by name and folder path. Filter by type, size, age and folder; sort any column; bulk move, delete and copy links.
 - 🗂 **Folder pages.** Breadcrumbs, subfolder cards, files with an "include subfolders" toggle, and in-folder search.
+- 📌 **Pinned folders & saved searches.** Pin any folder to the sidebar from its menu (reorder or unpin on hover). On Files, Folders and Expiring soon, **Save search** keeps the search text and filters as a named sidebar link. Stored in your browser, per Filester account.
 - 🌲 **Sidebar folder tree.** Expands to the folder you're viewing.
 - ⬆️ **Uploads.** Drag and drop anywhere to upload into the current folder. Files go up in chunks with retries using Filester's v2 protocol (up to 10 GB each).
 - ⏳ **Expiring soon.** Filester deletes files after a stretch with no downloads. A dedicated page shows how many days each file has left, an Overview banner and a sidebar badge warn you about anything due within 7 days, and red or amber badges appear next to at-risk files in every list. You can count from the FAQ rule (35 days without downloads, the default) or the API-docs rule (45 days without views or downloads).
