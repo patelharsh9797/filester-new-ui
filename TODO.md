@@ -29,7 +29,7 @@ Sizes: **S** = an hour or two · **M** = half a day · **L** = needs design or n
 ## Done
 
 - 2026-11-13: Gallery view: thumbnail grid on Files and folder pages, lightbox with full images, video/audio streaming,
-  selection and bulk actions
+  selection and bulk actions (`2fea4b8`)
 - 2026-11-13: Fix dropped keystrokes in URL-bound search boxes; Save search name without quotes (`fb818bc`)
 - 2026-11-12: Pinned folders and saved searches (`e54777d`)
 - 2026-11-12: Stored request logs turned off (`673beed`)
