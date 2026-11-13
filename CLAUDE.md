@@ -62,6 +62,7 @@ src/lib/                    client logic, mostly pure and unit-tested
   useUrlText.ts             search box whose text also lives in the URL (see Conventions)
 src/components/Gallery.tsx  grid view, list/grid toggle (useFileView) and lightbox
 src/lib/rename.ts           planRenames(): pure bulk-rename planner (patterns, numbering, clash checks)
+src/lib/cleanup.ts          findEmptyFolders(): topmost empty folder trees (Cleanup page)
 src/state/                  React context and stores: actions (all mutations), dialogs, toast, tasks
                             (progress panel), uploads, backups (queue), pins (localStorage), session
 src/components/, src/pages/ UI
