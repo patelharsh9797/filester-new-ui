@@ -8,7 +8,7 @@ const PASSES = [
   <><b>Your password</b> goes to filester.me once, when you sign in. It isn't stored or logged.</>,
   <><b>Requests to Filester</b> (listing, renaming, moving, deleting) and <b>uploads</b> pass through this site’s server, because Filester doesn’t let browsers call it directly. Nothing from them is kept.</>,
   <><b>Backups</b> stream from Filester straight into <i>your own</i> R2 bucket through this server; the files aren’t stored here.</>,
-  <><b>Downloads</b> you start go straight from Filester to you.</>,
+  <><b>Downloads</b> you start go straight from Filester to you. <b>Thumbnails and previews</b> in the gallery also load straight from Filester into your browser; opening a preview counts as a view on Filester.</>,
 ]
 
 const STORED = [

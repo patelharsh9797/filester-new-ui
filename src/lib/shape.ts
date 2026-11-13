@@ -70,6 +70,7 @@ export const SHAPES = {
   stats: { totals: 'object', sparkline: 'array', heatmap: 'array|null' },
   statsTotals: { d24: 'number', d7: 'number', d30: 'number' },
   statsDay: { day: 'string', downloads: 'number' },
+  viewTicket: { server: 'string', file: 'string', token: 'string' },
 } satisfies Record<string, Spec>
 
 /** CSV export columns the app reads. */

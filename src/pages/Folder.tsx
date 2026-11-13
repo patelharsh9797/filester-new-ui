@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useUrlText } from '../lib/useUrlText'
+import { Gallery, ViewToggle, useFileView } from '../components/Gallery'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ChevronRight, Copy, Copy as CopyIcon, ExternalLink, FolderInput, FolderPlus, Globe, Home, Lock, Pencil, Search, Trash2, Upload, Pin, PinOff, X } from 'lucide-react'
 import { useLibrary } from '../lib/library'
@@ -56,6 +57,9 @@ export function FolderPage() {
   const setParam = (k: 'fq' | 'deep', v: string | null) =>
     navigate({ search: (prev) => ({ ...prev, [k]: v || undefined, file: undefined }), replace: true })
   const [fqText, setFqText, setFqNow, flushFq] = useUrlText(fileQ, (v) => setParam('fq', v))
+  const [savedView, setView] = useFileView(search.view, (v) => navigate({ search: (prev) => ({ ...prev, view: v, file: undefined }), replace: true }))
+  // "Show in folder" links highlight one file in the list, so they open the list view.
+  const view = search.file && !search.view ? 'list' : savedView
 
   if (lib.foldersLoading) return <div className="max-w-6xl mx-auto p-6"><Skeleton rows={6} /></div>
   if (!isRoot && !folder) {
@@ -178,8 +182,10 @@ export function FolderPage() {
             <input className="input h-8 pl-8 pr-8 text-xs" placeholder={deep ? 'Search files in this tree…' : 'Search files in this folder…'} value={fqText} onBlur={flushFq} onChange={(e) => setFqText(e.target.value)} />
             {fqText && <button className="absolute right-1.5 top-1/2 -translate-y-1/2 btn-icon size-6" onClick={() => setFqNow('')} aria-label="Clear"><X className="size-3" /></button>}
           </div>
+          <ViewToggle view={view} onChange={setView} />
         </div>
         {lib.filesLoading ? <Skeleton rows={5} /> : (
+          view === 'grid' ? <Gallery files={files} sorted={!!fileQ} defaultSort="name" empty={fileQ ? `No files match “${fileQ}”.` : 'No files here.'} /> :
           <FileTable files={files} showFolder={deep} query={fileQ} highlight={highlight} sorted={!!fileQ} defaultSort="name"
             empty={fileQ ? `No files match “${fileQ}”.` : folder && folder.deletedFiles > 0 && !deep ? <>The {folder.deletedFiles} {folder.deletedFiles === 1 ? 'file' : 'files'} that were here {folder.deletedFiles === 1 ? 'was' : 'were'} deleted — most likely by Filester’s inactivity cleanup (files with no downloads for about 35 days). Deleted files can’t be recovered. <button className="text-accent-ink underline" onClick={() => openUpload(folder.id)}>Upload again</button> if you still have them.</> : <>This folder has no files. <button className="text-accent-ink underline" onClick={() => openUpload(folder?.id ?? null)}>Upload some</button> or drop them anywhere on the page.</>} />
         )}

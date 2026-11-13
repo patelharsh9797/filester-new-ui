@@ -109,6 +109,7 @@ export async function getFromExport(): Promise<FileListing> {
       folder_id: r.album_slug || null,
       created_at: r.upload_date,
       downloads: Number(r.downloads) || 0,
+      thumbnail: r.has_thumbnail === 'true' && r.thumbnail_url ? r.thumbnail_url : null,
     })
     activity.set(r.slug, {
       uploadDate: r.upload_date,
@@ -302,5 +303,30 @@ export async function getAccountStats(): Promise<AccountStats> {
     coolingFiles: statItems(d.cooling_files, 'file'),
     heatmap,
     dataSince: typeof d.data_since === 'string' ? d.data_since : null,
+  }
+}
+
+// ---------------------------------------------------------------- previews
+
+export interface ViewTicket { url: string; expiresAt: number }
+
+/**
+ * A short-lived link to show a file in the page (image or video stream), the same
+ * call Filester's own file page makes. Filester counts it as a *view*, not a download.
+ */
+export async function getViewTicket(slug: string): Promise<ViewTicket> {
+  const r = await fetch('/api/fs/view', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ file_slug: slug }),
+  })
+  if (r.status === 401) { onUnauthorized?.(); throw new ApiError('Session expired — please sign in again', 401) }
+  const d = (await r.json().catch(() => null)) as Record<string, unknown> | null
+  if (!r.ok || !d || d.success === false) throw new ApiError((d?.message as string) || `Preview unavailable (${r.status})`, r.status)
+  const t = expectShape<{ server: string; file: string; token: string; expires_in?: number }>('public/view', d, SHAPES.viewTicket)
+  if (!/^https?:\/\//.test(t.server)) throw new FilesterChangedError('public/view', 'unexpected media server')
+  return {
+    url: `${t.server.replace(/\/$/, '')}/v2/${encodeURIComponent(t.file)}?token=${encodeURIComponent(t.token)}`,
+    expiresAt: Date.now() + Math.max(60, (t.expires_in ?? 1800) - 60) * 1000,
   }
 }

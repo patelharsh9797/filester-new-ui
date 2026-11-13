@@ -38,7 +38,7 @@ export interface MockState {
   logins: number
   apiKey: string
   folders: { id: string; name: string; parent: string | null; orphan: boolean; public: boolean; hasPassword: boolean; hideRelated: boolean }[]
-  files: { slug: string; name: string; folder: string | null; deleted: boolean; size: number; downloads: number }[]
+  files: { slug: string; name: string; folder: string | null; deleted: boolean; size: number; downloads: number; views: number }[]
 }
 
 /** Put the fake Filester back to its seed data and empty the fake R2. */

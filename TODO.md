@@ -4,10 +4,6 @@ Sizes: **S** = an hour or two · **M** = half a day · **L** = needs design or n
 
 ## Next up
 
-- [ ] **Gallery view** (M). A thumbnail grid for a folder or a search, as a list/grid toggle on Files and folder pages.
-  The account has ~400 videos and ~170 images, but every page is a text table. Filester's CSV export has
-  `thumbnail_url` / `preview_url`, but it's not yet checked whether they load from our origin. Lazy-load and
-  virtualize the grid; open a lightbox with next/previous.
 - [ ] **Bulk rename** (S–M). Many files are named like `c747cecf-…jpg`. Select files and rename them by pattern
   (`{folder} {n}`, `{name}`, `{date}`, zero-padded numbers), with a before/after preview and progress in the task panel.
   Uses `POST /api/file/update`, which needs the file's current `folderId` or the file moves.
@@ -16,6 +12,8 @@ Sizes: **S** = an hour or two · **M** = half a day · **L** = needs design or n
 
 ## Backlog
 
+- [ ] **Gallery extras** (S). Zoom and pan in the lightbox; a slideshow; preload the next image (only if it doesn't
+  count extra views on Filester); bigger and smaller tile sizes.
 - [ ] **Sync pins and saved searches across devices** (S). They're in `localStorage` per browser today. Store them in
   KV per Filester user id, encrypted like the R2 settings, and keep localStorage as a cache. Update the privacy note.
 - [ ] **Share links** (S). Copy a folder's link, or the selected files' links grouped by folder (plain text or
@@ -30,6 +28,8 @@ Sizes: **S** = an hour or two · **M** = half a day · **L** = needs design or n
 
 ## Done
 
+- 2026-11-13: Gallery view: thumbnail grid on Files and folder pages, lightbox with full images, video/audio streaming,
+  selection and bulk actions
 - 2026-11-13: Fix dropped keystrokes in URL-bound search boxes; Save search name without quotes (`fb818bc`)
 - 2026-11-12: Pinned folders and saved searches (`e54777d`)
 - 2026-11-12: Stored request logs turned off (`673beed`)

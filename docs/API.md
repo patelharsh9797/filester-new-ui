@@ -105,6 +105,8 @@ Verified:
 | POST | `/api/folder/create` | `{name, public, password, hide_related, parent_identifier?}` | |
 | GET | `/api/files/top?limit=50` | | Most-downloaded files. |
 | GET | `/api/files/export.csv` | | CSV of every file: ids, name, size, dates, downloads, views, md5, folder id/name/slug, URLs. |
+| POST | `/v2/api/public/view` | `{file_slug}` | `{server, file, token, expires_in: 1800}`. Media at `{server}/v2/{file}?token=…` (no `download=true`): served inline, `Access-Control-Allow-Origin: *`, Range supported. **Counts a view, not a download** (verified: views +2, downloads unchanged). Used by the gallery lightbox via the Worker's `/api/fs/view` route, the only Filester token endpoint the proxy exposes. |
+| GET | `/t/<uuid>` | | Thumbnail (320×320 PNG, public, `Access-Control-Allow-Origin: *`, cached a day). The CSV export's `thumbnail_url` is this relative path when `has_thumbnail` is `true`. |
 | GET | `/api/account/stats` | | `{totals: {d24, d7, d30}, sparkline: [{day, downloads}] (last 30 days), trending_files / trending_folders: {24h, 7d, 30d: [...]}, movers_files, cooling_files, movers_folders, cooling_folders, alltime_files, alltime_folders, most_viewed, heatmap: 7×24 (rows Sunday first, hours UTC), data_since, generated}`. File items are `{id, slug, name, type, downloads}`; `most_viewed` items carry `downloads: 0`. Used by the Insights page. |
 | GET | `/api/manager/preferences` | | `{preferences: {}}` |
 

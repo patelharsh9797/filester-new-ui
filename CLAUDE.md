@@ -60,6 +60,7 @@ src/lib/                    client logic, mostly pure and unit-tested
   library.ts                buildIndex(): folder tree, paths, real per-folder counts; useLibrary()
   expiry.ts, duplicates.ts, search.ts, csv.ts, format.ts, upload.ts, backup.ts, pwa.ts
   useUrlText.ts             search box whose text also lives in the URL (see Conventions)
+src/components/Gallery.tsx  grid view, list/grid toggle (useFileView) and lightbox
 src/state/                  React context and stores: actions (all mutations), dialogs, toast, tasks
                             (progress panel), uploads, backups (queue), pins (localStorage), session
 src/components/, src/pages/ UI
@@ -87,6 +88,9 @@ mock and this list.
   folders at all. Bulk delete therefore deletes the whole subtree, deepest folders first.
 - **`folder/edit` with an empty `password` removes the folder's password.** Always re-send it; Hide-related
   skips password-protected folders.
+- **Previews use the view endpoint** (`/v2/api/public/view`): it counts a *view*, never a download. Thumbnails are
+  public at `filester.me/t/<uuid>`. The proxy exposes only `view` (`/api/fs/view`), never the download endpoint.
+  The lightbox waits 250 ms before requesting one and reuses links per file, so flicking past files doesn't count views.
 - **Asking for a download token counts as a download.** Never request one just to probe or check. Download
   stats update a few minutes late.
 - **Inactivity deletion:** FAQ says 35 days without downloads, the API docs say 45 days without views or downloads.

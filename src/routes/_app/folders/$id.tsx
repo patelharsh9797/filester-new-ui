@@ -3,6 +3,6 @@ import { FolderPage } from '../../../pages/Folder'
 import { stringParams } from '../../../lib/searchParams'
 
 export const Route = createFileRoute('/_app/folders/$id')({
-  validateSearch: stringParams('fq', 'deep', 'file'),
+  validateSearch: stringParams('fq', 'deep', 'file', 'view'),
   component: FolderPage,
 })

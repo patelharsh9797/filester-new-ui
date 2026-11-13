@@ -18,6 +18,7 @@
 import http from 'node:http'
 import crypto from 'node:crypto'
 import { contentFor } from './content.mjs'
+import zlib from 'node:zlib'
 
 const PORT = Number(process.env.MOCK_PORT || 8899)
 const CDN_HOST = 'fsc9.cdn.cr'
@@ -25,6 +26,18 @@ const DAY = 86_400_000
 
 const hex = (n) => crypto.randomBytes(n).toString('hex')
 const slugGen = () => crypto.randomBytes(5).toString('base64url').replace(/[^A-Za-z0-9]/g, 'x').slice(0, 7)
+/** A small solid-colour PNG (thumbnails and image previews). */
+function png(w, h, [r, g, b]) {
+  const crcT = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0 })
+  const crc = (buf) => { let c = 0xffffffff; for (const x of buf) c = crcT[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0 }
+  const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([len, td, c]) }
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2
+  const row = Buffer.concat([Buffer.from([0]), Buffer.from(Array.from({ length: w }, () => [r, g, b]).flat())])
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(Buffer.concat(Array(h).fill(row)))), chunk('IEND', Buffer.alloc(0))])
+}
+const colourOf = (name) => { const h = [...name].reduce((a, c) => (a * 33 + c.charCodeAt(0)) >>> 0, 5381); return [h & 255, (h >> 8) & 255, (h >> 16) & 255] }
+const hasThumb = (f) => /\.(jpe?g|png|gif|webp|mp4|mkv|mov|webm)$/i.test(f.name)
+const isImage = (f) => /\.(jpe?g|png|gif|webp)$/i.test(f.name)
 const iso = (t) => new Date(t).toISOString().replace(/\.\d{3}Z$/, 'Z')
 
 let db
@@ -155,6 +168,20 @@ async function web(req, res, path, q) {
     res.writeHead(200, { 'content-type': 'text/html' })
     return res.end(`<html><body><div class="api-key-input" style="filter:blur(5px)" id="apiKeyValue">${u.apiKey}</div></body></html>`)
   }
+  if (path === '/v2/api/public/view' && req.method === 'POST') {
+    // Like download, but Filester counts a view (used to show images and stream video).
+    const b = await readJson(req)
+    const owner = db.users.find((x) => live(x).some((f) => f.slug === b.file_slug))
+    const f = owner && fileByAny(owner, b.file_slug)
+    if (!f) return json(res, 404, { success: false, message: 'File not found' })
+    const folder = f.folder && folderById(owner, f.folder)
+    if (folder && !folder.public && u !== owner) return json(res, 403, { success: false, error: 'E2007', message: 'Access denied' })
+    f.views++; f.lastViewed = Date.now()
+    const token = `v${hex(16)}`
+    db.tickets.set(token, { owner, slug: f.slug, view: true })
+    const ext = f.name.includes('.') ? f.name.split('.').pop() : 'bin'
+    return json(res, 200, { expires_in: 1800, file: `${f.uuid}.${ext}`, server: `https://${CDN_HOST}`, success: true, token })
+  }
   if (path === '/v2/api/public/download' && req.method === 'POST') {
     const b = await readJson(req)
     const owner = db.users.find((x) => live(x).some((f) => f.slug === b.file_slug))
@@ -174,7 +201,7 @@ async function web(req, res, path, q) {
     let cols = ['file_id', 'uuid', 'slug', 'original_name', 'type', 'size_bytes', 'size_mb', 'upload_date', 'downloads', 'views', 'last_viewed', 'last_downloaded', 'sha256', 'md5', 'has_thumbnail', 'thumbnail_url', 'preview_url', 'blocked', 'flagged', 'public_override', 'album_id', 'album_name', 'album_slug', 'download_url']
     const rows = live(u).map((f) => {
       const fo = f.folder && folderById(u, f.folder)
-      return [f.id, f.uuid, f.slug, f.name, f.type, f.size, (f.size / 1048576).toFixed(2), iso(f.created).slice(0, 10) + 'T00:00:00Z', f.downloads, f.views, iso(f.lastViewed), iso(f.lastDownloaded), '', '', 'false', '', '', 'false', 'false', 'false', fo?.numId ?? '', fo?.name ?? '', fo?.id ?? '', url(f)].map(csvCell).join(',')
+      return [f.id, f.uuid, f.slug, f.name, f.type, f.size, (f.size / 1048576).toFixed(2), iso(f.created).slice(0, 10) + 'T00:00:00Z', f.downloads, f.views, iso(f.lastViewed), iso(f.lastDownloaded), '', '', hasThumb(f) ? 'true' : 'false', hasThumb(f) ? `http://127.0.0.1:${PORT}/t/${f.uuid}` : '', '', 'false', 'false', 'false', fo?.numId ?? '', fo?.name ?? '', fo?.id ?? '', url(f)].map(csvCell).join(',')
     })
     if (breaks.has('export')) cols = cols.map((c) => (c === 'last_downloaded' ? 'lastDownload' : c))
     res.writeHead(200, { 'content-type': 'text/csv' })
@@ -360,6 +387,12 @@ function cdn(req, res, path, q) {
   if (!t) { res.writeHead(403); return res.end('invalid token') }
   const f = fileByAny(t.owner, t.slug)
   if (!f) { res.writeHead(404); return res.end() }
+  if (t.view && isImage(f)) {
+    // Test files hold random bytes; show a real image so the browser can display it.
+    const img = png(64, 48, colourOf(f.name))
+    res.writeHead(200, { 'content-type': 'image/png', 'content-length': img.length, 'access-control-allow-origin': '*', 'content-disposition': 'inline' })
+    return res.end(img)
+  }
   const m = /bytes=(\d+)-(\d+)?/.exec(req.headers.range || '')
   if (!m) {
     res.writeHead(200, { 'content-length': f.size, 'accept-ranges': 'bytes', 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}` })
@@ -393,7 +426,7 @@ async function control(req, res, path, q) {
       logins: db.logins,
       apiKey: u.apiKey,
       folders: u.folders.map((f) => ({ id: f.id, name: f.name, parent: f.parent, orphan: !!isOrphan(u, f), public: f.public, hasPassword: !!f.password, hideRelated: f.hideRelated })),
-      files: u.files.map((f) => ({ slug: f.slug, name: f.name, folder: f.folder, deleted: f.deleted, size: f.size, downloads: f.downloads })),
+      files: u.files.map((f) => ({ slug: f.slug, name: f.name, folder: f.folder, deleted: f.deleted, size: f.size, downloads: f.downloads, views: f.views })),
     })
   }
   if (path === '/__age' && req.method === 'POST') {
@@ -411,6 +444,13 @@ http.createServer(async (req, res) => {
   try {
     if (p.startsWith('/__')) return await control(req, res, p, u.searchParams)
     if (p === '/turnstile/siteverify') return await siteverify(req, res)
+    if (/^\/t\/[0-9a-f-]+$/.test(p)) {
+      if (breaks.has('thumbs')) { res.writeHead(404); return res.end() }
+      const f = db.users.flatMap((x) => x.files).find((x) => x.uuid === p.slice(3))
+      const img = png(32, 32, colourOf(f?.name ?? p))
+      res.writeHead(f ? 200 : 404, { 'content-type': 'image/png', 'access-control-allow-origin': '*', 'cache-control': 'public, max-age=86400' })
+      return res.end(img)
+    }
     if (p.startsWith('/web/')) return await web(req, res, p.slice(4), u.searchParams)
     if (p.startsWith('/u1/')) return await u1(req, res, p.slice(3), u.searchParams)
     if (p.startsWith(`/cdn/${CDN_HOST}/`)) return cdn(req, res, p.slice(`/cdn/${CDN_HOST}`.length), u.searchParams)

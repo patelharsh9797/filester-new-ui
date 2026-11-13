@@ -8,6 +8,7 @@ Personal-use tool. It runs on Cloudflare Workers and talks to Filester's own API
 - 🔎 **Folder search.** Search by name or any part of the path, fuzzy, words in any order (`sci fi`, `movies classics`, `lofi`).
 - ⌘K **Command palette.** One search box for folders *and* files. Tab switches between All, Folders and Files; Enter opens.
 - 📁 **`/folders` page.** Every folder in one sortable table with full path, recursive file count, size, visibility and last activity. Also has a tree view, filters, and bulk move and delete.
+- 🖼 **Gallery view.** Switch Files or any folder to a thumbnail grid (remembered per browser). Click a tile for a full-screen viewer with full-size images and streamed video or audio, next/previous by arrow keys, buttons or swipe. You can also select tiles to copy links, move or delete. Previews count as *views* on Filester, never downloads.
 - 📄 **`/files` page.** Every file, searchable by name and folder path. Filter by type, size, age and folder; sort any column; bulk move, delete and copy links.
 - 🗂 **Folder pages.** Breadcrumbs, subfolder cards, files with an "include subfolders" toggle, and in-folder search.
 - 📌 **Pinned folders & saved searches.** Pin any folder to the sidebar from its menu (reorder or unpin on hover). On Files, Folders and Expiring soon, **Save search** keeps the search text and filters as a named sidebar link. Stored in your browser, per Filester account.

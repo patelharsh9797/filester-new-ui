@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useUrlText } from '../lib/useUrlText'
 import { SaveSearchButton } from '../components/Pins'
+import { Gallery, ViewToggle, useFileView } from '../components/Gallery'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Search, X } from 'lucide-react'
 import { useLibrary } from '../lib/library'
@@ -39,6 +40,7 @@ export function FilesPage() {
   const set = (k: 'q' | 'kind' | 'size' | 'age' | 'in', v: string | null) =>
     navigate({ search: (prev) => ({ ...prev, [k]: v || undefined }), replace: true })
   const [qText, setQText, setQNow, flushQ] = useUrlText(q, (v) => set('q', v))
+  const [view, setView] = useFileView(params.view, (v) => navigate({ search: (prev) => ({ ...prev, view: v }), replace: true }))
 
   const scopeIds = useMemo(() => {
     if (!where || where === 'root') return null
@@ -98,6 +100,7 @@ export function FilesPage() {
           {Object.entries(AGES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
         <SaveSearchButton page="/files" />
+        <ViewToggle view={view} onChange={setView} />
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -116,8 +119,10 @@ export function FilesPage() {
       </div>
 
       {lib.filesLoading ? <Skeleton rows={10} /> : (
-        <FileTable files={files} query={q} sorted={!!q}
-          empty={lib.files.length ? 'No files match these filters.' : 'No files yet — drop some anywhere to upload.'} />
+        view === 'grid'
+          ? <Gallery files={files} sorted={!!q} empty={lib.files.length ? 'No files match these filters.' : 'No files yet — drop some anywhere to upload.'} />
+          : <FileTable files={files} query={q} sorted={!!q}
+              empty={lib.files.length ? 'No files match these filters.' : 'No files yet — drop some anywhere to upload.'} />
       )}
     </div>
   )

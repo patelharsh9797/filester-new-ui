@@ -34,6 +34,27 @@ const FORWARD_REQ = ['content-type', 'content-length', 'x-upload-id', 'x-chunk-i
 const FORWARD_RES = ['content-type', 'content-disposition', 'retry-after', 'x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset']
 
 export async function proxy(request: Request, splat: string, creds: { token: string; apiKey: string }): Promise<Response> {
+  // Preview links: only Filester's *view* endpoint (counts a view). Download tokens are
+  // deliberately not reachable through the proxy, since Filester counts each one as a download.
+  if (splat === 'view') {
+    if (request.method !== 'POST') return Response.json({ success: false, message: 'Method not allowed' }, { status: 405 })
+    const { file_slug: slug } = ((await request.json().catch(() => ({}))) ?? {}) as { file_slug?: unknown }
+    if (typeof slug !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(slug)) return Response.json({ success: false, message: 'Bad file id' }, { status: 400 })
+    const r = await fetch(`${filesterOrigins().WEB}/v2/api/public/view`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'user-agent': UA, cookie: `auth_token=${creds.token}` },
+      body: JSON.stringify({ file_slug: slug }),
+    })
+    const headers = { 'content-type': r.headers.get('content-type') ?? 'application/json', 'cache-control': 'private, no-store' }
+    // Dev/test only: point media links at the local CDN forwarder (same knob as backups).
+    const rewrite = (env as unknown as Record<string, string | undefined>).FILESTER_CDN_REWRITE
+    if (rewrite && r.ok) {
+      const d = (await r.json().catch(() => null)) as { server?: string } | null
+      if (d?.server) d.server = `${rewrite.replace(/\/$/, '')}/${new URL(d.server).host}`
+      return new Response(JSON.stringify(d), { status: r.status, headers })
+    }
+    return new Response(r.body, { status: r.status, headers })
+  }
   const slash = splat.indexOf('/')
   const prefix = slash === -1 ? splat : splat.slice(0, slash)
   const route = routes()[prefix]

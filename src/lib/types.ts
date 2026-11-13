@@ -21,6 +21,8 @@ export interface FileItem {
   folder_id: string | null
   created_at: string
   downloads: number
+  /** Thumbnail image (from the CSV export; absent with the API fallback) */
+  thumbnail?: string | null
 }
 
 export interface Account {
