@@ -4,9 +4,6 @@ Sizes: **S** = an hour or two · **M** = half a day · **L** = needs design or n
 
 ## Next up
 
-- [ ] **Bulk rename** (S–M). Many files are named like `c747cecf-…jpg`. Select files and rename them by pattern
-  (`{folder} {n}`, `{name}`, `{date}`, zero-padded numbers), with a before/after preview and progress in the task panel.
-  Uses `POST /api/file/update`, which needs the file's current `folderId` or the file moves.
 - [ ] **Cleanup page** (S). Gather empty folders (0 files, no subfolders), folders whose files were all deleted by
   Filester (`deletedFiles > 0`, `directFiles = 0`) and duplicate copies on one page, with one-click cleanup.
 
@@ -28,6 +25,7 @@ Sizes: **S** = an hour or two · **M** = half a day · **L** = needs design or n
 
 ## Done
 
+- 2026-11-13: Bulk rename by pattern or find & replace, with preview and clash checks (`9a56204`)
 - 2026-11-13: Gallery view: thumbnail grid on Files and folder pages, lightbox with full images, video/audio streaming,
   selection and bulk actions (`2fea4b8`)
 - 2026-11-13: Fix dropped keystrokes in URL-bound search boxes; Save search name without quotes (`fb818bc`)
