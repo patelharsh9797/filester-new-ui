@@ -111,6 +111,7 @@ export function FileTable({ files, showFolder = true, query = '', highlight, emp
           <button className="btn-icon" onClick={clear} aria-label="Clear selection"><X className="size-4" /></button>
           <span className="font-medium text-accent-ink mr-auto">{selected.size} selected · {formatBytes(selectedFiles.reduce((n, f) => n + f.size, 0))}</span>
           <button className="btn h-8" onClick={() => copyText(selectedFiles.map((f) => f.url).join('\n'), toast, 'Links')}><Copy className="size-4" /> Copy links</button>
+          <button className="btn h-8" onClick={() => actions.renameFiles(selectedFiles, clear)}><Pencil className="size-4" /> Rename</button>
           <button className="btn h-8" onClick={() => actions.moveFiles(selectedFiles, clear)}><FolderInput className="size-4" /> Move</button>
           <button className="btn h-8 text-danger" onClick={() => actions.deleteFiles(selectedFiles, clear)}><Trash2 className="size-4" /> Delete</button>
         </div>

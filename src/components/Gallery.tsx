@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight, Copy, ExternalLink, FolderInput, LayoutGrid, List, Loader2, Play, Trash2, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, ExternalLink, FolderInput, LayoutGrid, List, Loader2, Pencil, Play, Trash2, X } from 'lucide-react'
 import { getViewTicket, type ViewTicket } from '../lib/api'
 import { formatBytes, formatDate } from '../lib/format'
 import { copyText, useActions } from '../state/actions'
@@ -104,6 +104,7 @@ export function Gallery({ files, empty, defaultSort = 'date', sorted }: {
           <span className="font-medium text-accent-ink mr-auto">{selected.size} selected · {formatBytes(selectedFiles.reduce((n, f) => n + f.size, 0))}</span>
           <button className="btn h-8" onClick={() => setSelected(new Set(rows.map((f) => f.id)))}>Select all {rows.length}</button>
           <button className="btn h-8" onClick={() => copyText(selectedFiles.map((f) => f.url).join('\n'), toast, 'Links')}><Copy className="size-4" /> Copy links</button>
+          <button className="btn h-8" onClick={() => actions.renameFiles(selectedFiles, clear)}><Pencil className="size-4" /> Rename</button>
           <button className="btn h-8" onClick={() => actions.moveFiles(selectedFiles, clear)}><FolderInput className="size-4" /> Move</button>
           <button className="btn h-8 text-danger" onClick={() => actions.deleteFiles(selectedFiles, clear)}><Trash2 className="size-4" /> Delete</button>
         </div>

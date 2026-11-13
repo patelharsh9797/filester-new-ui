@@ -6,6 +6,8 @@ import type { FileRow, FolderNode } from '../lib/types'
 import { useLibrary } from '../lib/library'
 import { useDialogs } from './dialogs'
 import { useToast } from './toast'
+import { BulkRenameDialog } from '../components/BulkRename'
+import type { RenameRow } from '../lib/rename'
 import { useTasks } from './tasks'
 import { FolderPickerDialog } from '../components/FolderPicker'
 import { FolderFormDialog, type FolderFormValues } from '../components/FolderForm'
@@ -258,6 +260,39 @@ export function useActions() {
       const name = await prompt({ title: 'Rename file', label: 'File name', initial: file.name, selectStem: true, confirmLabel: 'Rename' })
       if (!name) return
       await run(() => api.renameFile(file.slug, name, file.folder_id), 'File renamed')
+    },
+
+    /** Rename several files by pattern or find & replace, with a preview first. One file uses the simple prompt. */
+    async renameFiles(files: FileRow[], after?: () => void) {
+      if (!files.length) return
+      if (files.length === 1) {
+        const f = files[0]
+        const name = await prompt({ title: 'Rename file', label: 'File name', initial: f.name, selectStem: true, confirmLabel: 'Rename' })
+        if (name) await run(() => api.renameFile(f.slug, name, f.folder_id), 'File renamed')
+        after?.()
+        return
+      }
+      const rows = await new Promise<RenameRow<FileRow>[] | null>((resolve) => {
+        open((close) => <BulkRenameDialog files={files} onDone={(r) => { resolve(r); close() }} />)
+      })
+      if (!rows?.length) return
+      const newName = new Map(rows.map((r) => [r.file.slug, r.to]))
+      await runBatched({
+        title: 'Renaming files', verb: 'renamed', items: rows, batchSize: 5, id: (r) => r.file.slug, label: (r) => r.file.name,
+        op: async (batch) => {
+          const res = await Promise.allSettled(batch.map((r) => api.renameFile(r.file.slug, r.to, r.file.folder_id)))
+          return new Map(res.flatMap((x, i) => (x.status === 'rejected' ? [[batch[i].file.slug, (x.reason as Error).message]] : [])))
+        },
+        // Show new names right away instead of waiting for the next refresh.
+        onBatchDone: (ok) => {
+          const done = new Set(ok.map((r) => r.file.slug))
+          qc.setQueryData(['files'], (old: api.FileListing | undefined) => old && {
+            ...old, files: old.files.map((f) => { const slug = slugOf(f.url); return done.has(slug) ? { ...f, name: newName.get(slug)! } : f }),
+          })
+        },
+        success: (n) => `Renamed ${plural(n, 'file')}`,
+      })
+      after?.()
     },
 
     async moveFiles(files: FileRow[], after?: () => void) {
