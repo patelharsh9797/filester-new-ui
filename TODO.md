@@ -4,8 +4,7 @@ Sizes: **S** = an hour or two · **M** = half a day · **L** = needs design or n
 
 ## Next up
 
-- [ ] **Cleanup page** (S). Gather empty folders (0 files, no subfolders), folders whose files were all deleted by
-  Filester (`deletedFiles > 0`, `directFiles = 0`) and duplicate copies on one page, with one-click cleanup.
+_Nothing queued. Pick from the backlog._
 
 ## Backlog
 
@@ -25,6 +24,7 @@ Sizes: **S** = an hour or two · **M** = half a day · **L** = needs design or n
 
 ## Done
 
+- 2026-11-13: Cleanup page: empty folder trees (emptied vs never used), keep list, duplicates summary (`be1496c`)
 - 2026-11-13: Bulk rename by pattern or find & replace, with preview and clash checks (`9a56204`)
 - 2026-11-13: Gallery view: thumbnail grid on Files and folder pages, lightbox with full images, video/audio streaming,
   selection and bulk actions (`2fea4b8`)
