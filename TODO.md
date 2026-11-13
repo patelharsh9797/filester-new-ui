@@ -21,6 +21,7 @@ Sizes: **S** = an hour or two · **M** = half a day · **L** = needs design or n
 
 ## Done
 
+- 2026-11-13: Opt-in sync of pinned folders and saved searches across devices (`ed8d9ca`)
 - 2026-11-13: Cleanup page: empty folder trees (emptied vs never used), keep list, duplicates summary (`be1496c`)
 - 2026-11-13: Bulk rename by pattern or find & replace, with preview and clash checks (`9a56204`)
 - 2026-11-13: Gallery view: thumbnail grid on Files and folder pages, lightbox with full images, video/audio streaming,
