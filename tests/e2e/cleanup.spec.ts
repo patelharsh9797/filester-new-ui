@@ -31,7 +31,7 @@ test('keep hides a folder from the list (remembered), and can be undone', async 
 test('deleting an empty folder also removes its empty subfolders, nothing else', async ({ page, request }) => {
   // An empty folder with an empty subfolder, created through the app.
   await page.evaluate(async () => {
-    const make = async (name: string, parent: string) => (await (await fetch('/api/fs/v1/folder', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, parent, public: 1 }) })).json()).data.identifier
+    const make = async (name: string, parent: string) => ((await (await fetch('/api/fs/v1/folder', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, parent, public: 1 }) })).json()) as { data: { identifier: string } }).data.identifier
     await make('Summer', await make('Empty Albums', 'root'))
   })
   const before = await mockState(request)
