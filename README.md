@@ -25,6 +25,8 @@ Personal-use tool. It runs on Cloudflare Workers and talks to Filester's own API
 - 🛡 **Privacy note.** The sign-in page says in one line what happens to your password and files, and expands to the full list of what passes through the server and what's stored (and where). The same text is in Settings.
 - 🔐 **Password safeguard.** Editing a password-protected folder can't drop its password by accident. Filester's own endpoint does this when the password field is blank.
 
+Working on the code? Start with [`CLAUDE.md`](CLAUDE.md) (conventions, Filester quirks, testing rules) and [`TODO.md`](TODO.md) (roadmap).
+
 See [`docs/API.md`](docs/API.md) for the full API reference and [`docs/SITE-AUDIT.md`](docs/SITE-AUDIT.md) for the audit of the current site.
 
 ## Stack
