@@ -4,18 +4,15 @@ Sizes: **S** = an hour or two · **M** = half a day · **L** = needs design or n
 
 ## Next up
 
-_Nothing queued. Pick from the backlog._
+- [ ] **Share links** (S). Copy a folder's link, or the selected files' links grouped by folder (plain text or
+  Markdown), in one click.
+- [ ] **Activity log** (S–M). What you uploaded, moved, renamed, deleted or backed up, and when, recorded from
+  `useActions()` and kept in the browser (capped, with clear and export buttons).
 
 ## Backlog
 
 - [ ] **Gallery extras** (S). Zoom and pan in the lightbox; a slideshow; preload the next image (only if it doesn't
   count extra views on Filester); bigger and smaller tile sizes.
-- [ ] **Sync pins and saved searches across devices** (S). They're in `localStorage` per browser today. Store them in
-  KV per Filester user id, encrypted like the R2 settings, and keep localStorage as a cache. Update the privacy note.
-- [ ] **Share links** (S). Copy a folder's link, or the selected files' links grouped by folder (plain text or
-  Markdown), in one click.
-- [ ] **Activity log** (S–M). What you uploaded, moved, renamed, deleted or backed up, and when, recorded from
-  `useActions()` and kept in the browser (capped, with clear and export buttons).
 - [ ] **Expiry alerts** (L). Web Push through the installed PWA, or email, when files are about to expire, without opening
   the app. Needs a Cron Trigger that checks accounts while users are away, so it must keep Filester access
   server-side: opt-in, encrypted, and stated in the privacy note.

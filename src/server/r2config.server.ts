@@ -103,27 +103,42 @@ const b64 = (buf: ArrayBuffer | Uint8Array) => {
   return btoa(s)
 }
 const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
-const aad = (userId: number) => new TextEncoder().encode(`fsnav:r2:${userId}`)
-const kvKey = (userId: number) => `r2:${userId}`
-
-export async function saveConfig(userId: number, c: R2Config) {
+/**
+ * Store a JSON value in KV encrypted for one user. `purpose` goes into the
+ * additional authenticated data with the user id, so a record only decrypts for the
+ * same user and the same kind of data (R2 keys can't be read back as preferences).
+ */
+export async function putSealed(kvKey: string, purpose: string, userId: number, value: unknown, opts?: KVNamespacePutOptions) {
   const iv = crypto.getRandomValues(new Uint8Array(12))
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad(userId) }, await getKey(), new TextEncoder().encode(JSON.stringify(c)))
-  await env.STORE.put(kvKey(userId), JSON.stringify({ v: 1, iv: b64(iv), ct: b64(ct) }))
+  const ad = new TextEncoder().encode(`fsnav:${purpose}:${userId}`)
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: ad }, await getKey(), new TextEncoder().encode(JSON.stringify(value)))
+  await env.STORE.put(kvKey, JSON.stringify({ v: 1, iv: b64(iv), ct: b64(ct) }), opts)
 }
 
-export async function loadConfig(userId: number): Promise<R2Config | null> {
-  const raw = await env.STORE.get(kvKey(userId))
+/** Read a value stored with putSealed; null when missing, tampered with or encrypted with another secret. */
+export async function getSealed<T>(kvKey: string, purpose: string, userId: number): Promise<T | null> {
+  const raw = await env.STORE.get(kvKey)
   if (!raw) return null
   try {
     const { iv, ct } = JSON.parse(raw) as { iv: string; ct: string }
-    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv), additionalData: aad(userId) }, await getKey(), unb64(ct))
-    return JSON.parse(new TextDecoder().decode(pt)) as R2Config
+    const ad = new TextEncoder().encode(`fsnav:${purpose}:${userId}`)
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv), additionalData: ad }, await getKey(), unb64(ct))
+    return JSON.parse(new TextDecoder().decode(pt)) as T
   } catch (e) {
     if (e instanceof ConfigError) throw e
-    // Wrong secret (rotated) or tampered record: treat as not connected.
+    // Wrong secret (rotated) or tampered record: treat as not there.
     return null
   }
+}
+
+const kvKey = (userId: number) => `r2:${userId}`
+
+export async function saveConfig(userId: number, c: R2Config) {
+  await putSealed(kvKey(userId), 'r2', userId, c)
+}
+
+export async function loadConfig(userId: number): Promise<R2Config | null> {
+  return getSealed<R2Config>(kvKey(userId), 'r2', userId)
 }
 
 export async function deleteConfig(userId: number) {

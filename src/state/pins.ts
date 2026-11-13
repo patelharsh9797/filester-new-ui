@@ -15,11 +15,17 @@ export interface SavedSearch {
 export interface Pins {
   folders: string[]
   searches: SavedSearch[]
+  /** When this browser's copy last changed (ms); used to sync across devices */
+  updatedAt?: number
 }
 
-const EMPTY: Pins = { folders: [], searches: [] }
-const keyFor = (user: string) => `fsnav.pins.v1:${user.toLowerCase()}`
+const EMPTY: Pins = { folders: [], searches: [], updatedAt: 0 }
+export const pinsKeyFor = (user: string) => `fsnav.pins.v1:${user.toLowerCase()}`
+const keyFor = pinsKeyFor
 const listeners = new Set<() => void>()
+/** Notified only for changes made in this browser (not ones pulled from the synced copy). */
+const localChange = new Set<(key: string) => void>()
+export function onLocalPinsChange(fn: (key: string) => void) { localChange.add(fn); return () => { localChange.delete(fn) } }
 const cache = new Map<string, { raw: string | null; value: Pins }>()
 
 function read(key: string): Pins {
@@ -33,16 +39,35 @@ function read(key: string): Pins {
     if (p) value = {
       folders: Array.isArray(p.folders) ? p.folders.filter((x) => typeof x === 'string') : [],
       searches: Array.isArray(p.searches) ? p.searches.filter((s) => s && typeof s.name === 'string' && typeof s.page === 'string' && s.search && typeof s.search === 'object') : [],
+      updatedAt: Number(p.updatedAt) || 0,
     }
   } catch { /* corrupt: start over */ }
   cache.set(key, { raw, value })
   return value
 }
 
-function write(key: string, next: Pins) {
-  try { localStorage.setItem(key, JSON.stringify(next)) } catch { /* storage full or blocked */ }
+function write(key: string, next: Pins, fromSync = false) {
+  const value = fromSync ? next : { ...next, updatedAt: Date.now() }
+  try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* storage full or blocked */ }
   cache.delete(key)
   listeners.forEach((l) => l())
+  if (!fromSync) localChange.forEach((l) => l(key))
+}
+
+/** For the sync: read this browser's copy, or replace it with the synced one. */
+export const readPins = (key: string) => read(key)
+export const replacePins = (key: string, p: Pins) => write(key, p, true)
+/** Changed locally and should be pushed (e.g. after merging when turning sync on). */
+export const setPinsLocal = (key: string, p: Pins) => write(key, p)
+
+/** Union of two copies: everything from `a` first, then what only `b` has. */
+export function mergePins(a: Pins, b: Pins): Pins {
+  const sig = (s: SavedSearch) => `${s.page}?${JSON.stringify(sorted(s.search))}`
+  const seen = new Set(a.searches.flatMap((s) => [s.id, sig(s)]))
+  return {
+    folders: [...a.folders, ...b.folders.filter((f) => !a.folders.includes(f))],
+    searches: [...a.searches, ...b.searches.filter((s) => !seen.has(s.id) && !seen.has(sig(s)))],
+  }
 }
 
 if (typeof window !== 'undefined') {

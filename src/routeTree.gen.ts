@@ -19,6 +19,7 @@ import { Route as AppExpiringRouteImport } from './routes/_app/expiring'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
 import { Route as AppInsightsRouteImport } from './routes/_app/insights'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as ApiPrefsRouteImport } from './routes/api/prefs'
 import { Route as AppFoldersIndexRouteImport } from './routes/_app/folders/index'
 import { Route as AppFoldersIdRouteImport } from './routes/_app/folders/$id'
 import { Route as ApiBackupSplatRouteImport } from './routes/api/backup/$'
@@ -73,6 +74,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiPrefsRoute = ApiPrefsRouteImport.update({
+  id: '/api/prefs',
+  path: '/api/prefs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppFoldersIndexRoute = AppFoldersIndexRouteImport.update({
   id: '/folders/',
   path: '/folders/',
@@ -104,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/files': typeof AppFilesRoute
   '/insights': typeof AppInsightsRoute
   '/settings': typeof AppSettingsRoute
+  '/api/prefs': typeof ApiPrefsRoute
   '/folders/$id': typeof AppFoldersIdRoute
   '/api/backup/$': typeof ApiBackupSplatRoute
   '/api/fs/$': typeof ApiFsSplatRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/files': typeof AppFilesRoute
   '/insights': typeof AppInsightsRoute
   '/settings': typeof AppSettingsRoute
+  '/api/prefs': typeof ApiPrefsRoute
   '/': typeof AppIndexRoute
   '/folders/$id': typeof AppFoldersIdRoute
   '/api/backup/$': typeof ApiBackupSplatRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/_app/files': typeof AppFilesRoute
   '/_app/insights': typeof AppInsightsRoute
   '/_app/settings': typeof AppSettingsRoute
+  '/api/prefs': typeof ApiPrefsRoute
   '/_app/': typeof AppIndexRoute
   '/_app/folders/$id': typeof AppFoldersIdRoute
   '/api/backup/$': typeof ApiBackupSplatRoute
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/files'
     | '/insights'
     | '/settings'
+    | '/api/prefs'
     | '/folders/$id'
     | '/api/backup/$'
     | '/api/fs/$'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/files'
     | '/insights'
     | '/settings'
+    | '/api/prefs'
     | '/'
     | '/folders/$id'
     | '/api/backup/$'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/_app/files'
     | '/_app/insights'
     | '/_app/settings'
+    | '/api/prefs'
     | '/_app/'
     | '/_app/folders/$id'
     | '/api/backup/$'
@@ -193,6 +205,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiPrefsRoute: typeof ApiPrefsRoute
   ApiBackupSplatRoute: typeof ApiBackupSplatRoute
   ApiFsSplatRoute: typeof ApiFsSplatRoute
 }
@@ -269,6 +282,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/prefs': {
+      id: '/api/prefs'
+      path: '/api/prefs'
+      fullPath: '/api/prefs'
+      preLoaderRoute: typeof ApiPrefsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/folders/': {
       id: '/_app/folders/'
       path: '/folders'
@@ -331,6 +351,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiPrefsRoute: ApiPrefsRoute,
   ApiBackupSplatRoute: ApiBackupSplatRoute,
   ApiFsSplatRoute: ApiFsSplatRoute,
 }

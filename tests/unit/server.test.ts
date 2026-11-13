@@ -100,3 +100,35 @@ describe('allowlist', () => {
     delete vars.ALLOWED_USERS
   })
 })
+
+describe('synced prefs', async () => {
+  const { parsePrefs, savePrefs, loadPrefs } = await import('../../src/server/prefs.server')
+  it('keeps only valid pins and searches', () => {
+    const p = parsePrefs({
+      folders: ['abc123', 'abc123', '../etc', 42],
+      searches: [
+        { id: 's1', name: '  Photos  ', page: '/files', search: { q: 'jpg', kind: 'image', 'Bad-Key': 'x', long: 'y'.repeat(300) }, createdAt: '2025' },
+        { id: 's2', name: 'x', page: '/evil', search: {} },
+      ],
+      updatedAt: 123,
+    })
+    expect(p.folders).toEqual(['abc123'])
+    expect(p.searches).toEqual([{ id: 's1', name: 'Photos', page: '/files', search: { q: 'jpg', kind: 'image' }, createdAt: '2025' }])
+    expect(p.updatedAt).toBe(123)
+    expect(p.syncId).toMatch(/^[a-f0-9]{16}$/)
+  })
+  it('rejects malformed or oversized input', () => {
+    expect(() => parsePrefs({})).toThrow()
+    expect(() => parsePrefs({ folders: Array(501).fill('a'), searches: [] })).toThrow(/Too many/)
+  })
+  it('is stored encrypted, only readable by the same user, and not as R2 settings', async () => {
+    await savePrefs(5, { folders: ['secretfolder'], searches: [], updatedAt: 1, syncId: 'abc' })
+    const raw = kv.data.get('prefs:5')!
+    expect(raw).not.toContain('secretfolder')
+    expect((await loadPrefs(5))?.folders).toEqual(['secretfolder'])
+    kv.data.set('prefs:6', raw)
+    expect(await loadPrefs(6)).toBeNull()
+    kv.data.set('r2:5', raw)
+    expect(await loadConfig(5)).toBeNull()
+  })
+})

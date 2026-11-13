@@ -10,6 +10,7 @@ import { useSession, useSignOut } from '../state/session'
 import { useActions } from '../state/actions'
 import { useOpenDialog } from '../state/dialogs'
 import { SidebarPins } from './Pins'
+import { usePinsSync } from '../state/pinsSync'
 import { FolderTree } from './FolderTree'
 import { SearchPalette } from './SearchPalette'
 import { UploadDialog, UploadDock } from './Uploads'
@@ -29,6 +30,7 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigat
 export function Layout() {
   const session = useSession()
   const signOut = useSignOut()
+  usePinsSync()
   const lib = useLibrary()
   const account = useAccount()
   const expiring = useExpiring()

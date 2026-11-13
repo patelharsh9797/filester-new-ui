@@ -11,7 +11,8 @@ Live at `fs.snippface.vip`. The roadmap is in [`TODO.md`](TODO.md); keep it up t
   `import { env } from 'cloudflare:workers'`.
 - **TanStack Query** for all Filester data on the client. **Tailwind v4** with tokens in `src/index.css`
   (`@theme`, dark mode through `prefers-color-scheme`, and `@utility` classes such as `btn`, `card`, `chip`, `input`, `th`, `td`).
-- **Cloudflare KV** (`STORE` binding) holds only opt-in, encrypted per-user backup settings and daily usage counters.
+- **Cloudflare KV** (`STORE` binding) holds only opt-in, encrypted per-user data: backup settings, synced pins and saved
+  searches (`prefs:<id>`), plus daily usage counters. Encrypt with `putSealed`/`getSealed` (`r2config.server.ts`) and a distinct `purpose`.
 - **R2 / S3** through `aws4fetch` (SigV4). Each user brings their own bucket.
 - Icons from `lucide-react`. No chart library: charts are plain HTML and CSS (see `src/pages/Insights.tsx`).
 - Tests: **Vitest** (unit) and **Playwright** (e2e) against a mock Filester and **moto** as the S3 server.
@@ -54,6 +55,7 @@ src/server/                 server-only code (*.server.ts never reaches the clie
   s3.server.ts              minimal SigV4 S3 client (RFC 3986 key encoding)
   backup.server.ts          download ticket → ranged copy → multipart into the user's bucket
   turnstile.server.ts       optional Turnstile verification
+  prefs.server.ts           synced pins/saved searches: strict validation, 64 KB cap (route: api/prefs.ts)
 src/lib/                    client logic, mostly pure and unit-tested
   api.ts                    every Filester call; responses are checked with shape.ts
   shape.ts                  "Filester changed how … responds" checks (FilesterChangedError)
@@ -64,7 +66,8 @@ src/components/Gallery.tsx  grid view, list/grid toggle (useFileView) and lightb
 src/lib/rename.ts           planRenames(): pure bulk-rename planner (patterns, numbering, clash checks)
 src/lib/cleanup.ts          findEmptyFolders(): topmost empty folder trees (Cleanup page)
 src/state/                  React context and stores: actions (all mutations), dialogs, toast, tasks
-                            (progress panel), uploads, backups (queue), pins (localStorage), session
+                            (progress panel), uploads, backups (queue), pins (localStorage), pinsSync (opt-in
+                            device sync: merge once per syncId, then newest wins), session
 src/components/, src/pages/ UI
 public/sw.js                service worker: caches only the app's own static files and the offline page
 tests/unit/                 vitest; cf-stub.ts replaces cloudflare:workers with an in-memory KV

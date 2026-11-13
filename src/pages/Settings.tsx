@@ -3,6 +3,7 @@ import { usePwaInstall } from '../lib/pwa'
 import { BackupSetup } from '../components/BackupSetup'
 import { ConnectionCheck } from '../components/ConnectionCheck'
 import { PrivacyDetails } from '../components/PrivacyNote'
+import { SyncSettings } from '../components/SyncSettings'
 import { useSession, useSignOut } from '../state/session'
 import { useAccount, useLibrary } from '../lib/library'
 import { formatBytes } from '../lib/format'
@@ -46,6 +47,8 @@ export function SettingsPage() {
         <a className="btn" href="https://filester.me/account" target="_blank" rel="noreferrer"><ExternalLink className="size-4" /> Filester account settings</a>
         <button className="btn text-danger ml-auto" onClick={() => signOut()}><LogOut className="size-4" /> Sign out</button>
       </div>
+
+      <SyncSettings />
 
       <BackupSetup />
 

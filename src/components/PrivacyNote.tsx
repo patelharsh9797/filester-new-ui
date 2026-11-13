@@ -12,7 +12,8 @@ const PASSES = [
 ]
 
 const STORED = [
-  <><b>In your browser:</b> an encrypted session cookie with your Filester session and API key, which page scripts can’t read. It lasts up to 30 days and is deleted when you sign out. Also your preferences, pinned folders and saved searches, and the progress of unfinished backups so they can resume.</>,
+  <><b>In your browser:</b> an encrypted session cookie with your Filester session and API key, which page scripts can’t read. It lasts up to 30 days and is deleted when you sign out. Also your preferences, pinned folders and saved searches (synced across devices only if you turn that on), and the progress of unfinished backups so they can resume.</>,
+  <><b>On this site’s server, only if you turn on sync:</b> your pinned folders and saved searches, encrypted so they only open for your account. Turning sync off deletes them.</>,
   <><b>On this site’s server, only if you turn on backups:</b> your R2 keys, encrypted so they only decrypt for your account, and your backup settings. Disconnecting deletes them. There’s also a count of bytes you backed up today (for the daily limit), deleted after 2 days.</>,
   <><b>No request logs are kept.</b> Like any web host, Cloudflare handles your connection to serve the site.</>,
 ]
